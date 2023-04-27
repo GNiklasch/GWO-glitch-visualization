@@ -393,6 +393,7 @@ with st.sidebar.form('load_what'):
     t0_text = st.text_input('**seconds of strain data around GPS'
                             ' (or ISO 8601-formatted UTC) timestamp:**',
                             initial_t0_GPS)
+    cache_wide_blocks = False
     if overrides.wide_cache_blocks:
         cache_wide_blocks = st.checkbox('\- use wide cache blocks',
                                         value=True)
