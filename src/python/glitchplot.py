@@ -193,11 +193,13 @@ st.set_page_config(page_title=apptitle, page_icon=":sparkler:")
 def emit_footer() -> None:
     st.divider()
     footer = """
-    **Inspired by [GW Quickview]({0}).\\
-    Powered by [GWpy]({1}); fed with [data]({2}) hosted by the [GWOSC]({3}).\\
-    Web user interface created with [Streamlit]({4}).**
-    """.format('https://github.com/jkanner/streamlit-dataview/',
-               'https://gwpy.github.io',
+    **View the [source code on GitHub]({0}).\\
+    Inspired by [GW Quickview]({1}).\\
+    Powered by [GWpy]({2}); fed with [data]({3}) hosted by the [GWOSC]({4}).\\
+    Web user interface created with [Streamlit]({5}).**
+    """.format('https://github.com/GNiklasch/GWO-glitch-visualization',
+               'https://github.com/jkanner/streamlit-dataview/',
+               'https://gwpy.github.io/',
                'https://gwosc.org/data/',
                'https://gwosc.org/',
                'https://streamlit.io/')
