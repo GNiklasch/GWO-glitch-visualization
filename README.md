@@ -4,7 +4,8 @@ This repository holds source code for a tool to visualize *glitches* (transient 
 
 ## Explore
 
-- Visit the web application once deployed on the Streamlit Community Cloud...
+- Visit the live web application deployed on the Streamlit Community Cloud:
+[![GWO Glitch Plotter](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://gwo-glitch-plotter.streamlit.app)
 - You can also [install](/doc/INSTALL.md) and run the application locally.
 
 ## Audience
