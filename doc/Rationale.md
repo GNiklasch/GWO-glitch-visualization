@@ -1,5 +1,7 @@
 # Rationale
 
+*(Or, why things currently are as they are)*
+
 As a GWO glitch hunter / classifier, I want to
 - inspect the strain-channel data from any of the three observatories represented in [Gravity Spy](https://www.zooniverse.org/projects/zooniverse/gravity-spy/)
   - around a moment in time given as either a GPS or UTC timestamp,
@@ -52,7 +54,7 @@ And except for the sample rate it's in nearly the same order as the input elemen
 - The available data can contain gaps, ranging in length between a few seconds (8 seconds is typical around a single extremely loud glitch that was vetoed by data quality monitoring) to minutes, hours or several days.
 
 Note also that:
-- Data from the upcoming fourth observing run (**O4**) are planned be published to GWOSC only in **2025**.
+- _Data from the upcoming fourth observing run (**O4**) are planned to be published to GWOSC only in **2025**._
   - [LIGO Data Management Plan](https://dcc.ligo.org/LIGO-M1000066/public), see Fig. 3 there
 
 ## Design drivers
