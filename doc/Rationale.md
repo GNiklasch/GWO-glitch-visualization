@@ -6,7 +6,7 @@ As a GWO glitch hunter / classifier, I want to
   - over time intervals as short as 1/8 second or as long as up to 64 seconds,
     - zooming in to shorter or zooming out to longer intervals as necessary,
   - and possibly vary the initial timestamp by a small amount (to center the view on an adjacent noise feature) or in larger steps of up to a whole minute,
-    - navigating as closely as possible around any gaps in the available data (due to locklosses or data-quality vetoes),
+    - navigating as closely as possible around any gaps in the available data (e.g. due to locklosses or data-quality vetoes),
 
 in order to
 - inspect the raw waveform
@@ -16,7 +16,7 @@ in order to
   - optionally zoom into a narrower frequency range,
   - optionally compare it to a spectrum from up to a few seconds earlier or later,
   - optionally work with data at the full 16384/s sample rate instead of the default 4096/s downsampled rate to inspect features above 1.4 kHz,
-- optionally view a spectrogram (although this the least useful visualization for many kinds of glitches),
+- optionally view a spectrogram (although this is the least useful visualization for many kinds of glitches),
   - where long-duration narrowband noise may stand out that would be removed by whitening,
   - possible also zooming in to a narrower frequency band,
 - almost always view a constant-Q transform image of the (whitened and normalized) data, where transient noise stands out well,
@@ -27,8 +27,8 @@ in order to
     - suppress abundant medium-loud features to better isolate the loudest ones.
 
 I would also like to be able to
-- highlight, or refrain from highlighting, my specified the central time in the plots,
-- turn a grid overlay on or off for the time/frequency plane views (spectrogram and contant-Q transform),
+- highlight, or refrain from highlighting, my specified central time in the plots,
+- turn a grid overlay on or off for the time/frequency plane views (spectrogram and constant-Q transform),
 - choose among a reasonable variety of different colormaps for these views, including
   - matching the colormap (Viridis) used in Gravity Spy and many LIGO logbook entries,
   - (approximately) matching the colormap (~Reds reversed) used in GWitchHunters,
@@ -38,7 +38,7 @@ I would also like to be able to
 
 This list pretty much describes what the GWO glitch plotter can actually do.
 
-And except for the sample rate it's in the same order as the input elements and output illustrations in the web application UI.
+And except for the sample rate it's in nearly the same order as the input elements and output illustrations in the web application UI.
 
 ## Data constraints
 
@@ -62,7 +62,7 @@ Note also that:
 - As far as possible and useful, all user interface elements should work in similar, predictable, repeatable ways.
   - Use only sliders with discrete detents. Avoid continuous sliders.
 - Deal with data gaps in a consistent way.
-  - Some plots would be able to work with partial data, but would produce surprising or potentially misleading graphics. Instead of showing such graphics, bail out with a clear indication of the problem and, if possible, hints how to circumvent it.
+  - Some plots would be able to work with partial data, but would produce surprising or potentially misleading graphics. Instead of showing such graphics, bail out with a clear indication of the problem and, if possible, provide hints how to circumvent it.
 
 ### Mitigating the download overhead
 
@@ -71,7 +71,7 @@ Note also that:
   - Store enough of them to *often* be able to change the central timestamp by up to a couple of seconds without needing to fetch more. (This will not always be possible. Always satisfying both constraints would require always downloading *all* of the data!)
 - Provide feedback about each ongoing download,
   - in particular when the requested interval overlaps *two* consecutive data files.
-- Don't embark on premature downloads. Wait until the user has settled on an interferometer, central timestamp, interval length, *and* sample rate, and explicitly asks to fetch data for this combination of parameters.
+- Don't embark on premature downloads. Wait until the user has settled on an interferometer, central timestamp, interval length, *and* sample rate, and proceeds to explicitly ask the app to fetch data for this combination of parameters.
 
 #### Cloud constraints
 
@@ -82,9 +82,11 @@ Note also that:
 ### General ease of use
 
 - Accept GPS or UTC timestamps.
-- Nearly all numerical paramaters *except* the cental event timestamp can be drawn from fairly large ranges, and call for *logarithmic* rather than linear input controls.
+- Nearly all numerical parematers *except* the central event timestamp can be drawn from fairly large ranges, and call for *logarithmic* rather than linear input controls.
 - Most of these admit convenient steps in either powers of 2, or powers of $\sqrt{2}$ (e.g. Q-values), or powers of $\root{4}\of{2}$ (e.g. bounds of frequency ranges).
   - But `5.65685424949238` wastes space and leaves users none the wiser. Replace exact powers with judiciously rounded values, displayed with appropriate (modest) precision.
+- The output should reflect the input.
+  - Each input parameter should either have a readily obvious effect on the corresponding visualization (e.g. overlaying or not overlaying a grid), or should leave an explicit trace. After downloading and saving a generated plot, a user familiar with the web app should find enough information in it to be able to recreate it. (Except for possible changes in appearance resulting from intervening updates to the application code.)
 
 #### Graceful error handling
 
@@ -95,8 +97,8 @@ Note also that:
 
 - Some things just can't be helped (for now).
   - Band pass filters where the lower and upper frequency limits coincide simply do not work, and the Streamlit slider implementation is currently not able to prevent the user from requesting this.
-  - Browsers will tend lose touch with a cloud-hosted web app session if there is no user input for some time. Reloading the page will reestablish communications, but will lose all the previous settings.
-  - There's no practical way to save the current settings in order to re-use them later.
+  - Browsers will tend to lose touch with a cloud-hosted web app session if there is no user input for some time. The page would appear to the user to be frozen. Reloading the page will reestablish communications, but will lose all the previous settings.
+  - There's no practical way to save a user's current settings in order to re-use them later.
   - Deploying a newer version of the web app to the Streamlit Community Coud disrupts all the user sessions existing at that moment.
   - Sometimes the Community Cloud itself is taken down for maintenance / upgrades.
 
@@ -107,4 +109,8 @@ Note also that:
 - This needs to be so for loading the data, to prevent premature fetches, so by consistency it needs to be so everywhere else.
   - The controls are grouped into several input forms, each with its own Load or Apply button, one of the latter for each kind of visualization (except the raw data plot which is always included).
   - Since the sidebar and main pane can be independently vertically scrolled, the user will be able to watch e.g. the ASD spectrum while trying out changes to the ASD spectrum settings - or to watch it while trying out changes to the central timestamp and time interval length.
+
+### Flexible timestamp input
+
 - Accept timestamps in GPS terms (such as `1187008882.4` for GW170817) or UTC formatted as [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) (such as `2017-08-17T12:41:04.400` or `2017-08-17 12:41:04.400`).
+  - Always play them back to the user in both formats.
