@@ -428,8 +428,9 @@ asd_initial_f_range = (asd_f_detents_eff[1], asd_f_detents_eff[-1])
 spec_initial_f_range = (spec_f_detents_eff[0], spec_f_detents_eff[-1])
 
 calib_freq_low = calib_freqs_low[interferometer]
-calib_caveat = ("Caution: Strain data below {0} Hz from {1} aren't "
-                "calibrated.").format(calib_freq_low, interferometer)
+calib_caveat = ("Caution: Strain data below {0} Hz from {1} aren't"
+                ' calibrated.'
+                ).format(calib_freq_low, interferometer)
 
 st.sidebar.caption(' Use the "Do..." and "' "Don't..." '" options to select'
                    ' which plots to show or skip.')
@@ -637,15 +638,16 @@ try:
                                     t_start, t_end, sample_rate)
 except:
     load_strain_state.markdown('')
-    st.warning('Load failed; data from {0} may not be available on GWOSC for'
-               ' time {1}, or the GWOSC data service might be temporarily'
-               ' unavailable. Please try a different time and/or'
-               ' interferometer.'.format(interferometer, t0))
+    st.warning(('Load failed; data from {0} may not be available on GWOSC for'
+                ' time {1}, or the GWOSC data service might be temporarily'
+                ' unavailable. Please try a different time and/or'
+                ' interferometer.'
+                ).format(interferometer, t0))
     emit_footer()
     st.stop()
 
-loaded_msg = 'Loaded {0} strain data ({1} samples/s).'.format(interferometer,
-                                                              sample_rate)
+loaded_msg = ('Loaded {0} strain data ({1} samples/s).'
+              ).format(interferometer, sample_rate)
 load_strain_state.markdown(loaded_msg)
 st.write('Cache block start:', t_start, ', end:', t_end,
          '; plot start:', t_plotstart, ', end:', t_plotend)
@@ -678,8 +680,8 @@ try:
     with _lock:
         figure_raw = strain_cropped.plot(color=primary_color)
 
-        raw_title = '{0}, around {1} ({2} UTC), raw'.format(interferometer,
-                                                            t0, t0_iso)
+        raw_title = ('{0}, around {1} ({2} UTC), raw'
+                     ).format(interferometer, t0, t0_iso)
         ax = figure_raw.gca()
         ax.set_title(raw_title, fontsize=raw_title_fontsize)
         ax.set_xscale('seconds', epoch=t_epoch)
@@ -754,9 +756,10 @@ if do_plot:
         else:
             pass
 
-        filtered_fmt = '{0}, around {1} ({2} UTC){3}, Bandpass: {4} - {5} Hz'
-        filtered_title = filtered_fmt.format(interferometer, t0, t0_iso,
-                                             wh_note, f_range[0], f_range[1])
+        filtered_title = ('{0}, around {1} ({2} UTC){3},'
+                          ' Bandpass: {4} - {5} Hz'
+                          ).format(interferometer, t0, t0_iso,
+                                   wh_note, f_range[0], f_range[1])
 
         with _lock:
             figure_filtered = filtered_cropped.plot(color=primary_color)
@@ -826,10 +829,10 @@ if do_show_asd:
         else:
             pass
 
-        asd_fmt = '{0}, during {1} s around {2} GPS ({3} UTC)'
-        asd_title = asd_fmt.format(interferometer, t_width, t0, t0_iso)
-        asd_xl_fmt = 'Frequency [Hz], {0} - {1} Hz'
-        asd_xlabel = asd_xl_fmt.format(asd_f_range[0], asd_f_range[1])
+        asd_title = ('{0}, during {1} s around {2} GPS ({3} UTC)'
+                     ).format(interferometer, t_width, t0, t0_iso)
+        asd_xlabel = ('Frequency [Hz], {0} - {1} Hz'
+                      ).format(asd_f_range[0], asd_f_range[1])
         asd_ylabel = r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]'
 
         with _lock:
@@ -895,8 +898,8 @@ st.divider()
 if do_spec:
     st.subheader('Spectrogram')
 
-    spec_fmt = '{0}, around {1} GPS ({2} UTC)'
-    spec_title = spec_fmt.format(interferometer, t0, t0_iso)
+    spec_title = ('{0}, around {1} GPS ({2} UTC)'
+                  ).format(interferometer, t0, t0_iso)
     if spec_stride > t_width / 8:
         spec_stride = t_width / 8
     spec_overlap = spec_stride / 4
@@ -964,10 +967,10 @@ if do_qtsf:
                  ' compute the Q-transform. Try a shorter time interval or'
                  ' try varying the requested timestamp.')
     else:
-        qtsf_fmt = '{0}, around {1} ({2} UTC), Q={3}{4}'
         q_wh_note = ', whitened' if whiten_qtsf else ''
-        qtsf_title = qtsf_fmt.format(interferometer, t0, t0_iso,
-                                     q0, q_wh_note)
+        qtsf_title = ('{0}, around {1} ({2} UTC), Q={3}{4}'
+                      ).format(interferometer, t0, t0_iso,
+                               q0, q_wh_note)
 
         with _lock:
             figure_qgram = q_gram.plot(figsize=qtsf_figsize)
@@ -998,8 +1001,8 @@ if do_qtsf:
                         ' been plotted and areas near these edges may'
                         ' contain artefacts.'
                         ' Also, information about low frequencies may be'
-                        ' insufficient to paint that'
-                        ' region.').format(' far' if q_warning == 1 else '')
+                        ' insufficient to paint that region.'
+                        ).format(' far' if q_warning == 1 else '')
             st.warning(q_caveat)
         else:
             pass
