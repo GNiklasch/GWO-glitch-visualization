@@ -192,17 +192,21 @@ st.set_page_config(page_title=apptitle, page_icon=":sparkler:")
 # need to bail out prematurely:
 def emit_footer() -> None:
     st.divider()
+    stamp = atime.Time(atime.Time.now(),
+                       scale='utc', format='isot').to_string()
     footer = """
-    **View the [source code on GitHub]({0}).\\
+    View the [source code on GitHub]({0}).\\
     Inspired by [GW Quickview]({1}).\\
     Powered by [GWpy]({2}); fed with [data]({3}) hosted by the [GWOSC]({4}).\\
-    Web user interface created with [Streamlit]({5}).**
+    Web user interface created with [Streamlit]({5}).\\
+    \- Page refreshed {6} UTC.
     """.format('https://github.com/GNiklasch/GWO-glitch-visualization',
                'https://github.com/jkanner/streamlit-dataview/',
                'https://gwpy.github.io/',
                'https://gwosc.org/data/',
                'https://gwosc.org/',
-               'https://streamlit.io/')
+               'https://streamlit.io/',
+               stamp)
     st.markdown(footer)
     return
 
