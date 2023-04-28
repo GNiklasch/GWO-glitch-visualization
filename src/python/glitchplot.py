@@ -648,16 +648,12 @@ st.write('Cache block start:', t_start, ', end:', t_end,
 strain_precropped = strain.crop(t_plotstart - t_pad, t_plotend + t_pad)
 
 # One extra sample ensures that the rightmost major tick will be drawn when
-# t0 is a sufficiently round number (in binary) - *except* when that one
-# sample would fall into the next data gap.
+# t0 is a sufficiently round number (in binary)...
 t_plotedge = t_plotend + 1./sample_rate
 strain_cropped = strain.crop(t_plotstart, t_plotedge)
 
-# Unfortunately strain.value_at(t_plotedge) can fail ("Value ... not found
-# in array index") when t0 is *not* exactly representable as a float, whence
-# the following circuitous approach to inspecting the real edge:
-if np.isnan(strain_cropped.value_at(strain_cropped.xindex[-1])):
-    # too bad, drop the extra sample
+# ... *except* when that one sample would fall into the next data gap.
+if np.isnan(strain_cropped.value[-1]):
     strain_cropped = strain.crop(t_plotstart, t_plotend)
 else:
     pass
