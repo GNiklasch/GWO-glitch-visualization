@@ -129,15 +129,28 @@ def load_high_rate_strain(interferometer, t_start, t_end, sample_rate=16384):
 # had used to fetch it - whence the dummy arguments.
 @st.cache_data(max_entries=16 if overrides.large_caches else 4)
 def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
-                     t_plotstart, t_plotend, q, whiten):
+                     t_plotstart, t_plotend, t_pad, q, whiten):
     outseg = (t_plotstart, t_plotend)
     q_warning = 0
     try:
-        q_gram = _strain.q_transform(outseg=outseg, qrange=(q, q),
-                                     whiten=whiten, fduration=t_pad)
+        # The q_transform output would be distorted when the available strain
+        # segment is much longer and isn't symmetric around t0:  Above a
+        # certain frequency  (which depends on the padding and on the Q-value)
+        # all features would be displaced to the left.  Pre-cropping the data
+        # prevents this  (and speeds up processing, too).  Pre-cropping too
+        # tightly, however, would result in broader whitening artefacts and
+        # potentially losing output at low frequencies.
+        padding = min(2.5 * t_pad,
+                      t_end - t_plotend,
+                      t_plotstart - t_start)
+        strain_cropped = _strain.crop(t_plotstart - padding,
+                                      t_plotend + padding)
+        q_gram = strain_cropped.q_transform(outseg=outseg, qrange=(q, q),
+                                            whiten=whiten, fduration=t_pad)
     except ValueError:
         q_warning = 1
         try:
+            # ...with less padding:
             strain_cropped = _strain.crop(t_plotstart - t_pad,
                                           t_plotend + t_pad)
             q_gram = strain_cropped.q_transform(outseg=outseg, qrange=(q, q),
@@ -145,10 +158,13 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
                                                 fduration=t_pad)
         except ValueError:
             q_warning = 2
+            # One last try, with no padding:
             strain_cropped = _strain.crop(t_plotstart, t_plotend)
             q_gram = strain_cropped.q_transform(outseg=outseg, qrange=(q, q),
                                                 whiten=whiten)
-            # default fduration=2 applies
+            # Here, the default fduration=2 applies.
+            # If this last-ditch attempt fails, the exception is raised up
+            # to our call site.
     return (q_gram, q_warning)
 
 @st.cache_data(max_entries=10 if overrides.large_caches else 4)
@@ -952,10 +968,11 @@ if do_qtsf:
     st.subheader('Constant-Q transform')
 
     try:
-        q_gram, q_warning = transform_strain(strain,
-                                             interferometer, t_start, t_end,
+        q_gram, q_warning = transform_strain(strain, interferometer,
+                                             t_start, t_end,
                                              sample_rate,
-                                             t_plotstart, t_plotend, q=q0,
+                                             t_plotstart, t_plotend, t_pad,
+                                             q=q0,
                                              whiten=whiten_qtsf)
         q_error = False
     except ValueError:
