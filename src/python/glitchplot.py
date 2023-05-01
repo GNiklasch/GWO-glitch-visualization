@@ -131,6 +131,12 @@ def load_high_rate_strain(interferometer, t_start, t_end, sample_rate=16384):
 def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
                      t_plotstart, t_plotend, t_pad, q, whiten):
     outseg = (t_plotstart, t_plotend)
+    # Without nailing down logf and fres, q_transform() would default to a
+    # very high value for the number of frequency steps, somehow resulting
+    # in exorbitant memory consumption for the ad-hoc modified colormaps
+    # created during plotting  (on the order of 480 MiB for a single
+    # Q-transform plot at high sample rate!).
+    fres = ceil(max(600, 24 * q) * (1 if sample_rate < 16384 else 1.3))
     q_warning = 0
     try:
         # The q_transform output would be distorted when the available strain
@@ -146,6 +152,7 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
         strain_cropped = _strain.crop(t_plotstart - padding,
                                       t_plotend + padding)
         q_gram = strain_cropped.q_transform(outseg=outseg, qrange=(q, q),
+                                            logf = True, fres = fres,
                                             whiten=whiten, fduration=t_pad)
     except ValueError:
         q_warning = 1
@@ -154,6 +161,7 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
             strain_cropped = _strain.crop(t_plotstart - t_pad,
                                           t_plotend + t_pad)
             q_gram = strain_cropped.q_transform(outseg=outseg, qrange=(q, q),
+                                                logf = True, fres = fres,
                                                 whiten=whiten,
                                                 fduration=t_pad)
         except ValueError:
@@ -161,6 +169,7 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
             # One last try, with no padding:
             strain_cropped = _strain.crop(t_plotstart, t_plotend)
             q_gram = strain_cropped.q_transform(outseg=outseg, qrange=(q, q),
+                                                logf = True, fres = fres,
                                                 whiten=whiten)
             # Here, the default fduration=2 applies.
             # If this last-ditch attempt fails, the exception is raised up
