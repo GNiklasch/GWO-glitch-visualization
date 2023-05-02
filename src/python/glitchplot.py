@@ -782,14 +782,15 @@ if do_plot:
             pass
 
         filtered_title = ('{0}, around {1} ({2} UTC){3},'
-                          ' Bandpass: {4} - {5} Hz'
+                          ' band pass: {4} - {5} Hz'
                           ).format(interferometer, t0, t0_iso,
                                    wh_note, f_range[0], f_range[1])
 
         with _lock:
             figure_filtered = filtered_cropped.plot(color=primary_color)
             ax = figure_filtered.gca()
-            ax.set_title(filtered_title, fontsize=filtered_title_fontsize)
+            ax.set_title(filtered_title,
+                         loc='right', fontsize=filtered_title_fontsize)
             if whiten_plot:
                 ax.set_ylabel('arbitrary units')
             else:
