@@ -5,6 +5,7 @@ scale.
 
 from matplotlib.ticker import Formatter
 
+# pylint: disable=too-few-public-methods
 class MyFormatter(Formatter):
     """
     Formats (minor) tick values as integers, but avoids overcrowding
@@ -46,6 +47,7 @@ class MyFormatter(Formatter):
         Return the format for tick value *x* at position *pos*.
         (*pos* is passed by the caller but not used here.)
         """
+        # pylint: disable=unused-argument
         if len(self.locs) == 0:
             return ''
         x_int = round(x)
