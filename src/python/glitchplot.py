@@ -44,7 +44,7 @@ from plotutil.ticker import MyFormatter
 
 # Importing customcm is required since it registers our custom colormap
 # and its reversed form with matplotlib.
-# pylint: disable=unused-import
+# pylint: disable-next=unused-import
 import plotutil.customcm
 
 # Thread-safe plotting:
@@ -82,14 +82,14 @@ class ZeroFrequencyRangeError(ZeroDivisionError):
     whose lower and upper limits coincide, which is unsuitable for
     constructing a band pass filter.
     """
-    # pylint: disable=W0107
+    # pylint: disable-next=W0107
     pass
 
 class DataGapError(ValueError):
     """Runtime exception raised to communicate that a gap in the
     available strain data prevents further processing and plotting.
     """
-    # pylint: disable=W0107
+    # pylint: disable-next=W0107
     pass
 
 # ---------------------------------------------------------------------------
@@ -102,7 +102,7 @@ LOW_RATE, HIGH_RATE = (4096, 16384)
 # -- Helper methods: cacheable data...
 # ---------------------------------------------------------------------------
 
-# pylint: disable=W0621
+# pylint: disable-next=W0621
 def _load_strain_impl(interferometer, t_start, t_end, sample_rate=LOW_RATE):
     """Workhorse wrapper around TimeSeries.fetch_open_data()"""
     # Work around bug #1612 in GWpy:  fetch_open_data() would fail if t_end
@@ -134,7 +134,7 @@ def _load_strain_impl(interferometer, t_start, t_end, sample_rate=LOW_RATE):
 # For local use where more than 1 GiB of RAM is available, we may use wider
 # cache blocks  (typically 512 s at the low sample rate)  when requested.
 @st.cache_data(max_entries=16 if overrides.large_caches else 8)
-# pylint: disable=W0621
+# pylint: disable-next=W0621
 def load_low_rate_strain(interferometer, t_start, t_end,
                          sample_rate=LOW_RATE):
     """Cacheable wrapper around low-sample-rate data fetching"""
@@ -142,7 +142,7 @@ def load_low_rate_strain(interferometer, t_start, t_end,
                             sample_rate=sample_rate)
 
 @st.cache_data(max_entries=8 if overrides.large_caches else 3)
-# pylint: disable=W0621
+# pylint: disable-next=W0621
 def load_high_rate_strain(interferometer, t_start, t_end,
                           sample_rate=HIGH_RATE):
     """Cacheable wrapper around high-sample-rate data fetching"""
@@ -155,22 +155,22 @@ def load_high_rate_strain(interferometer, t_start, t_end,
 # Streamlit can't use the strain as the hash key, but it *can* use what
 # we had used to fetch it - whence the dummy arguments.
 @st.cache_data(max_entries=10 if overrides.large_caches else 4)
-# pylint: disable=W0621
+# pylint: disable-next=W0621
 def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
                   t_plotstart, t_plotend, stride, overlap):
     """Cacheable wrapper around TimeSeries.spectogram()"""
-    # pylint: disable=unused-argument
+    # pylint: disable-next=unused-argument
     specgram = _strain.spectrogram(stride=stride, overlap=overlap) ** (1/2.)
     return specgram
 
 @st.cache_data(max_entries=16 if overrides.large_caches else 4)
-# pylint: disable=W0621
+# pylint: disable-next=W0621
 def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
                      t_plotstart, t_plotend, t_pad, q, whiten):
     """Cacheable wrapper around TimeSeries.q_transform(), with graceful
     backoff to reduced padding when we're (too) close to a data gap"""
     outseg = (t_plotstart, t_plotend)
-    # pylint: disable=unused-argument
+    # pylint: disable-next=unused-argument
     # Without nailing down logf and fres, q_transform() would default to a
     # very high value for the number of frequency steps, somehow resulting
     # in exorbitant memory consumption for the ad-hoc modified colormaps
@@ -225,14 +225,14 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
 def gps_to_isot(val):
     """Convert a GPS timestamp to a UTC date/time in ISO 8601 format with
     a literal 'T' separating date and time."""
-    # pylint: disable=redefined-builtin
+    # pylint: disable-next=redefined-builtin
     return atime.Time(val=atime.Time(val=val, scale='tai', format='gps'),
                       scale='utc', format='isot').to_string()
 
 def iso_to_gps(val, format='isot'):
     """Convert a UTC date/time in ISO 8601 format with a literal 'T'
     separating date and time to a GPS timestamp."""
-    # pylint: disable=redefined-builtin
+    # pylint: disable-next=redefined-builtin
     return atime.Time(val=atime.Time(val=val, scale='utc', format=format),
                       scale='tai', format='gps').to_value('gps')
 
@@ -243,12 +243,12 @@ def any_to_gps(val):
     parsed as a floating point number representing a GPS timestamp."""
     try:
         t = iso_to_gps(val=val)
-    # pylint: disable=broad-exception-caught
+    # pylint: disable-next=broad-exception-caught
     except Exception:
         try:
-            # pylint: disable=redefined-builtin
+            # pylint: disable-next=redefined-builtin
             t = iso_to_gps(val=val, format='iso')
-        # pylint: disable=broad-exception-caught
+        # pylint: disable-next=broad-exception-caught
         except Exception:
             t=float(val)
     return t
@@ -527,7 +527,7 @@ calib_caveat = ("Caution: Strain data below {0} Hz from {1} aren't"
                 ' calibrated.'
                 ).format(calib_freq_low, interferometer)
 
-# pylint: disable=implicit-str-concat
+# pylint: disable-next=implicit-str-concat
 st.sidebar.caption((' Use the "Do..." and "' "Don't..." '" options to select'
                     ' which plots to show or skip.'))
 
@@ -651,7 +651,7 @@ with st.sidebar.form('qtsf_how'):
 # ---------------------------------------------------------------------------
 
 try:
-    # pylint: disable=bad-str-strip-call
+    # pylint: disable-next=bad-str-strip-call
     t0=any_to_gps(t0_text.strip())
 except ValueError as ex:
     st.warning('Sorry, there seems to be a typo in the timestamp input:')
@@ -717,6 +717,7 @@ if overrides.mem_profiling:
 # argument, thus a trailing backslash-backslash-newline would end up
 # displaying a single backslash.
 if override_acks != '':
+    # pylint: disable-next=bad-str-strip-call
     st.caption(override_acks.strip('''\\
     '''))
 
@@ -732,7 +733,7 @@ load_strain_state = st.markdown(state_msg)
 try:
     strain, flag_data = load_strain(interferometer,
                                     t_start, t_end, sample_rate)
-# pylint: disable=broad-exception-caught
+# pylint: disable-next=broad-exception-caught
 except Exception:
     load_strain_state.markdown('')
     st.warning(('Load failed; data from {0} may not be available on GWOSC for'
