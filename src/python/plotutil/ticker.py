@@ -48,11 +48,10 @@ class MyFormatter(Formatter):
         """
         if len(self.locs) == 0:
             return ''
-        else:
-            x_int = round(x)
-            if abs(x - x_int) > 0.19:
-                # don't label half-integers or fifth-integers in the low range
-                return ''
-            if self._a_ok or x_int in self._good:
-                return '{0:d}'.format(round(x))
+        x_int = round(x)
+        if abs(x - x_int) > 0.19:
+            # don't label half-integers or fifth-integers in the low range
             return ''
+        if self._a_ok or x_int in self._good:
+            return '{0:d}'.format(round(x))
+        return ''

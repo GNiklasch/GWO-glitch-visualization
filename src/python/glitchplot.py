@@ -74,16 +74,24 @@ overrides = parser.parse_args()
 # ---------------------------------------------------------------------------
 
 class ZeroFrequencyRangeError(ZeroDivisionError):
+    """Runtime exception raised upon detecting a frequency range
+    whose lower and upper limits coincide, which is unsuitable for
+    constructing a band pass filter.
+    """
     pass
 
 class DataGapError(ValueError):
+    """Runtime exception raised to communicate that a gap in the
+    available strain data prevents further processing and plotting.
+    """
     pass
 
 # ---------------------------------------------------------------------------
 # -- Helper methods: cacheable data...
 # ---------------------------------------------------------------------------
 
-def load_strain_impl(interferometer, t_start, t_end, sample_rate=4096):
+def _load_strain_impl(interferometer, t_start, t_end, sample_rate=4096):
+    """Workhorse wrapper around TimeSeries.fetch_open_data()"""
     # Work around bug #1612 in GWpy:  fetch_open_data() would fail if t_end
     # falls on  (or a fraction of a second before)  the boundary between
     # two successive 4096 s chunks.  Asking for a fraction of a second
@@ -114,12 +122,14 @@ def load_strain_impl(interferometer, t_start, t_end, sample_rate=4096):
 # cache blocks  (typically 512 s at the low sample rate)  when requested.
 @st.cache_data(max_entries=16 if overrides.large_caches else 8)
 def load_low_rate_strain(interferometer, t_start, t_end, sample_rate=4096):
-    return load_strain_impl(interferometer, t_start, t_end,
+    """Cacheable wrapper around low-sample-rate data fetching"""
+    return _load_strain_impl(interferometer, t_start, t_end,
                             sample_rate=sample_rate)
 
 @st.cache_data(max_entries=8 if overrides.large_caches else 3)
 def load_high_rate_strain(interferometer, t_start, t_end, sample_rate=16384):
-    return load_strain_impl(interferometer, t_start, t_end,
+    """Cacheable wrapper around high-sample-rate data fetching"""
+    return _load_strain_impl(interferometer, t_start, t_end,
                             sample_rate=sample_rate)
 
 # Recomputing a spectrogram or a const-Q transform doesn't take as long
@@ -130,12 +140,15 @@ def load_high_rate_strain(interferometer, t_start, t_end, sample_rate=16384):
 @st.cache_data(max_entries=10 if overrides.large_caches else 4)
 def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
                   t_plotstart, t_plotend, stride, overlap):
+    """Cacheable wrapper around TimeSeries.spectogram()"""
     specgram = _strain.spectrogram(stride=stride, overlap=overlap) ** (1/2.)
     return specgram
 
 @st.cache_data(max_entries=16 if overrides.large_caches else 4)
 def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
                      t_plotstart, t_plotend, t_pad, q, whiten):
+    """Cacheable wrapper around TimeSeries.q_transform(), with graceful
+    backoff to reduced padding when we're (too) close to a data gap"""
     outseg = (t_plotstart, t_plotend)
     # Without nailing down logf and fres, q_transform() would default to a
     # very high value for the number of frequency steps, somehow resulting
@@ -187,14 +200,22 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
 # ---------------------------------------------------------------------------
 
 def gps_to_isot(val):
+    """Convert a GPS timestamp to a UTC date/time in ISO 8601 format with
+    a literal 'T' separating date and time."""
     return atime.Time(val=atime.Time(val=val, scale='tai', format='gps'),
                       scale='utc', format='isot').to_string()
 
 def iso_to_gps(val, format='isot'):
+    """Convert a UTC date/time in ISO 8601 format with a literal 'T'
+    separating date and time to a GPS timestamp."""
     return atime.Time(val=atime.Time(val=val, scale='utc', format=format),
                       scale='tai', format='gps').to_value('gps')
 
 def any_to_gps(val):
+    """Convert the user intput to a GPS timestamp, accepting either
+    UTC formatted as ISO 8601 date/time with 'T' or space separating
+    time and date, optionally with a trailing 'Z', or text that can be
+    parsed as a floating point number representing a GPS timestamp."""
     try:
         t = iso_to_gps(val=val)
     except Exception:
@@ -209,6 +230,7 @@ def any_to_gps(val):
 # ---------------------------------------------------------------------------
 
 def print_mem_profile(tops = 8) -> None:
+    """Print out some memory diagnostics."""
     snapshot = tracemalloc.take_snapshot()
     top_stats = snapshot.statistics('lineno')
     print('[- Top {0} -]'.format(tops))
@@ -221,6 +243,7 @@ def print_mem_profile(tops = 8) -> None:
 # ---------------------------------------------------------------------------
 
 def emit_footer() -> None:
+    """Emit the page footer."""
     st.divider()
     stamp = atime.Time(atime.Time.now(),
                        scale='utc', format='isot').to_string()
@@ -358,6 +381,8 @@ t_widths = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8, 16, 32, 64]
 INITIAL_WIDTH = t_widths[5]
 
 sample_rates = [4096, 16384]
+
+CHUNK_SIZE = 4096 # only used for informative messages
 
 # It might be nice to have a red "Don't...." and green "Do...", but Streamlit
 # selectbox options do not support markdown/colors.  Moreover, selecting any
@@ -638,8 +663,6 @@ else:
     t_epoch = floor(t0)
     t_major = min(1, t_width / 8)
 
-CHUNK_SIZE = 4096 # only used for informative messages
-
 # ---------------------------------------------------------------------------
 # -- Data load processing...
 # ---------------------------------------------------------------------------
@@ -679,7 +702,7 @@ load_strain_state = st.markdown(state_msg)
 try:
     strain, flag_data = load_strain(interferometer,
                                     t_start, t_end, sample_rate)
-except:
+except Exception:
     load_strain_state.markdown('')
     st.warning(('Load failed; data from {0} may not be available on GWOSC for'
                 ' time {1}, or the GWOSC data service might be temporarily'
@@ -737,10 +760,10 @@ try:
     with _lock:
         figure_raw = strain_cropped.plot(color=PRIMARY_COLOR)
 
-        raw_title = ('{0}, around {1} ({2} UTC), raw'
+        RAW_TITLE = ('{0}, around {1} ({2} UTC), raw'
                      ).format(interferometer, t0, t0_iso)
         ax = figure_raw.gca()
-        ax.set_title(raw_title, fontsize=RAW_TITLE_FONTSIZE)
+        ax.set_title(RAW_TITLE, fontsize=RAW_TITLE_FONTSIZE)
         ax.set_xscale('seconds', epoch=t_epoch)
         if t_width >= 1.0:
             ax.xaxis.set_major_locator(MultipleLocator(base=t_major))
@@ -811,7 +834,7 @@ if do_plot:
         if np.isnan(filtered.max()):
             raise DataGapError()
 
-        filtered_title = ('{0}, around {1} ({2} UTC){3},'
+        FILTERED_TITLE = ('{0}, around {1} ({2} UTC){3},'
                           ' band pass: {4} - {5} Hz'
                           ).format(interferometer, t0, t0_iso,
                                    wh_note, f_range[0], f_range[1])
@@ -819,7 +842,7 @@ if do_plot:
         with _lock:
             figure_filtered = filtered_cropped.plot(color=PRIMARY_COLOR)
             ax = figure_filtered.gca()
-            ax.set_title(filtered_title,
+            ax.set_title(FILTERED_TITLE,
                          loc='right', fontsize=FILTERED_TITLE_FONTSIZE)
             if whiten_plot:
                 ax.set_ylabel('arbitrary units')
@@ -952,7 +975,7 @@ st.divider()
 if do_spec:
     st.subheader('Spectrogram')
 
-    spec_title = ('{0}, around {1} GPS ({2} UTC)'
+    SPEC_TITLE = ('{0}, around {1} GPS ({2} UTC)'
                   ).format(interferometer, t0, t0_iso)
     if spec_stride > t_width / 8:
         spec_stride = t_width / 8
@@ -979,7 +1002,7 @@ if do_spec:
                              cax=cax, cmap=spec_colormap,
                              vmin=spec_v_min, vmax=spec_v_max,
                              norm='log')
-        ax.set_title(spec_title, fontsize=SPEC_TITLE_FONTSIZE)
+        ax.set_title(SPEC_TITLE, fontsize=SPEC_TITLE_FONTSIZE)
         cax.yaxis.set_minor_formatter(NullFormatter())
         ax.grid(spec_grid_enabled)
         cax.grid(spec_grid_enabled)
@@ -1023,7 +1046,7 @@ if do_qtsf:
                  ' try varying the requested timestamp.')
     else:
         q_wh_note = ', whitened' if whiten_qtsf else ''
-        qtsf_title = ('{0}, around {1} ({2} UTC), Q={3}{4}'
+        QTSF_TITLE = ('{0}, around {1} ({2} UTC), Q={3}{4}'
                       ).format(interferometer, t0, t0_iso,
                                q0, q_wh_note)
 
@@ -1035,7 +1058,7 @@ if do_qtsf:
             figure_qgram.colorbar(label="Normalized energy",
                                   cax=cax, cmap=qtsf_colormap,
                                   clim = [0, ne_cutoff])
-            ax.set_title(qtsf_title, fontsize=QTSF_TITLE_FONTSIZE)
+            ax.set_title(QTSF_TITLE, fontsize=QTSF_TITLE_FONTSIZE)
             ax.title.set_position([.5, 1.05])
             ax.grid(qtsf_grid_enabled)
             cax.grid(qtsf_grid_enabled)
