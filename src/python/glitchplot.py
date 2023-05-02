@@ -93,11 +93,17 @@ class DataGapError(ValueError):
     pass
 
 # ---------------------------------------------------------------------------
+# -- Input selectables and related parameters, up front --
+# ---------------------------------------------------------------------------
+
+LOW_RATE, HIGH_RATE = (4096, 16384)
+
+# ---------------------------------------------------------------------------
 # -- Helper methods: cacheable data...
 # ---------------------------------------------------------------------------
 
 # pylint: disable=W0621
-def _load_strain_impl(interferometer, t_start, t_end, sample_rate=4096):
+def _load_strain_impl(interferometer, t_start, t_end, sample_rate=LOW_RATE):
     """Workhorse wrapper around TimeSeries.fetch_open_data()"""
     # Work around bug #1612 in GWpy:  fetch_open_data() would fail if t_end
     # falls on  (or a fraction of a second before)  the boundary between
@@ -129,14 +135,16 @@ def _load_strain_impl(interferometer, t_start, t_end, sample_rate=4096):
 # cache blocks  (typically 512 s at the low sample rate)  when requested.
 @st.cache_data(max_entries=16 if overrides.large_caches else 8)
 # pylint: disable=W0621
-def load_low_rate_strain(interferometer, t_start, t_end, sample_rate=4096):
+def load_low_rate_strain(interferometer, t_start, t_end,
+                         sample_rate=LOW_RATE):
     """Cacheable wrapper around low-sample-rate data fetching"""
     return _load_strain_impl(interferometer, t_start, t_end,
                             sample_rate=sample_rate)
 
 @st.cache_data(max_entries=8 if overrides.large_caches else 3)
 # pylint: disable=W0621
-def load_high_rate_strain(interferometer, t_start, t_end, sample_rate=16384):
+def load_high_rate_strain(interferometer, t_start, t_end,
+                          sample_rate=HIGH_RATE):
     """Cacheable wrapper around high-sample-rate data fetching"""
     return _load_strain_impl(interferometer, t_start, t_end,
                             sample_rate=sample_rate)
@@ -168,7 +176,7 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
     # in exorbitant memory consumption for the ad-hoc modified colormaps
     # created during plotting  (on the order of 380 MiB for a single
     # Q-transform plot at high sample rate!).
-    fres = ceil(max(600, 24 * q) * (1 if sample_rate < 16384 else 1.3))
+    fres = ceil(max(600, 24 * q) * (1 if sample_rate < HIGH_RATE else 1.3))
     q_warning = 0
     try:
         # The q_transform output would be distorted when the available strain
@@ -363,7 +371,7 @@ QTSF_TITLE_FONTSIZE = 17
 st.title('Plot glitches from GWOSC-sourced strain data')
 
 # ---------------------------------------------------------------------------
-# -- Input selectables and related parameters --
+# -- Input selectables and related parameters, remainder --
 # ---------------------------------------------------------------------------
 
 # Strictly speaking the following is valid for O3 only...
@@ -397,10 +405,10 @@ T_ELBOW_ROOM = 46.7
 # Filtering will have to get by with less padding beyond the half width:
 T_PAD = 8.0
 
-t_widths = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8, 16, 32, 64]
+t_widths = (0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8, 16, 32, 64)
 INITIAL_WIDTH = t_widths[5]
 
-sample_rates = [4096, 16384]
+sample_rates = (LOW_RATE, HIGH_RATE)
 
 CHUNK_SIZE = 4096 # only used for informative messages
 
@@ -424,11 +432,11 @@ yorn_choices = list(yorn)
 # Data below calib_freqs_low[interferometer] are also unreliable.
 # (H1 in particular switched to much more aggressive VLF highpass filtering
 # during O3b on 2020-01-14.)
-f_detents = [8, 9.51, 11.3, 13.5, 16, 19.0, 22.6, 26.9,
+f_detents = (8, 9.51, 11.3, 13.5, 16, 19.0, 22.6, 26.9,
              32, 38.3, 45.3, 53.8, 64, 76.1, 90.5, 108,
              128, 152, 181, 215, 256, 304, 362, 431,
              512, 609, 724, 861, 1024, 1218, 1448, 1722,
-             2048, 2435, 2896, 3444, 4096, 4871, 5793]
+             2048, 2435, 2896, 3444, 4096, 4871, 5793)
 
 # ASD spectra and spectrograms share some of their input choices.
 asd_y_decades = {-27: 1.E-27, -26: 1.E-26, -25: 1.E-25, -24: 1.E-24,
@@ -450,14 +458,14 @@ spec_initial_v = (asd_y_detents[1], asd_y_detents[-4])
 spec_stride = 0.125
 
 # View limit frequencies for spectrograms:
-spec_f_detents = [10, 22.6, 45.3, 90.5, 181, 362, 724, 1448, 2896, 5793]
+spec_f_detents = (10, 22.6, 45.3, 90.5, 181, 362, 724, 1448, 2896, 5793)
 
 # Q-values spaced at powers of sqrt(2):
-q_values = [5.66, 8, 11.3, 16, 22.6, 32, 45.3, 64]
+q_values = (5.66, 8, 11.3, 16, 22.6, 32, 45.3, 64)
 INITIAL_Q = q_values[2]
 
 # Colormap scaling for const-Q transforms:
-normalized_energies = [6.3, 12.7, 25.5, 51.1, 102.3]
+normalized_energies = (6.3, 12.7, 25.5, 51.1, 102.3)
 INITIAL_NE_CUTOFF = normalized_energies[2]
 
 # Start memory profiling if requested:
@@ -495,7 +503,7 @@ with st.sidebar.form('load_what'):
                                            use_container_width=True)
 
 # Preprocess parameters which depend on the sample rate and/or interferometer:
-if sample_rate < 16384:
+if sample_rate < HIGH_RATE:
     f_detents_eff = f_detents[0:30]
     asd_f_detents_eff = f_detents[0:31]
     spec_f_detents_eff = spec_f_detents[0:8]
@@ -654,7 +662,7 @@ except ValueError as ex:
 
 t0_iso=gps_to_isot(t0)
 
-t_cache_boundaries = ((512 if sample_rate < 16384 else 256)
+t_cache_boundaries = ((512 if sample_rate < HIGH_RATE else 256)
                       if cache_wide_blocks else 32)
 
 t_halfwidth = t_width / 2
@@ -1080,7 +1088,7 @@ if do_qtsf:
                                                       size="5%", pad="3%")
             figure_qgram.colorbar(label="Normalized energy",
                                   cax=cax, cmap=qtsf_colormap,
-                                  clim = [0, ne_cutoff])
+                                  clim=(0, ne_cutoff))
             ax.set_title(QTSF_TITLE, fontsize=QTSF_TITLE_FONTSIZE)
             ax.title.set_position([.5, 1.05])
             ax.grid(qtsf_grid_enabled)
