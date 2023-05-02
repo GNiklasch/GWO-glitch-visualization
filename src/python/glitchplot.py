@@ -22,23 +22,22 @@ the graphics.
 # -- Imports and matplotlib backend sanitizing --
 # ---------------------------------------------------------------------------
 
-import streamlit as st
-import pandas as pd
-import numpy as np
-from gwpy.timeseries import TimeSeries, StateTimeSeries
-import astropy.time as atime
-import matplotlib as mpl
-from matplotlib.backends.backend_agg import RendererAgg
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from matplotlib.ticker import LogFormatter, NullFormatter, \
-    AutoMinorLocator, MultipleLocator, NullLocator
-
 from math import ceil, floor
 import argparse
 
 # memory management and profiling
 import gc
 import tracemalloc
+
+import streamlit as st
+import numpy as np
+from gwpy.timeseries import TimeSeries, StateTimeSeries
+import astropy.time as atime
+import matplotlib as mpl
+from matplotlib.backends.backend_agg import RendererAgg
+from matplotlib.ticker import LogFormatter, NullFormatter, \
+    AutoMinorLocator, MultipleLocator, NullLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # customizations
 from plotutil.ticker import MyFormatter
@@ -198,10 +197,10 @@ def iso_to_gps(val, format='isot'):
 def any_to_gps(val):
     try:
         t = iso_to_gps(val=val)
-    except:
+    except Exception:
         try:
             t = iso_to_gps(val=val, format='iso')
-        except:
+        except Exception:
             t=float(val)
     return t
 
@@ -209,7 +208,7 @@ def any_to_gps(val):
 # ...memory profiling...
 # ---------------------------------------------------------------------------
 
-def print_mem_profile(tops = 8):
+def print_mem_profile(tops = 8) -> None:
     snapshot = tracemalloc.take_snapshot()
     top_stats = snapshot.statistics('lineno')
     print('[- Top {0} -]'.format(tops))
@@ -225,7 +224,7 @@ def emit_footer() -> None:
     st.divider()
     stamp = atime.Time(atime.Time.now(),
                        scale='utc', format='isot').to_string()
-    footer = """
+    FOOTER = """
     View the [source code on GitHub]({0}).\\
     Inspired by [GW Quickview]({1}).\\
     Powered by [GWpy]({2}); fed with [data]({3}) hosted by the [GWOSC]({4}).\\
@@ -238,21 +237,20 @@ def emit_footer() -> None:
                'https://gwosc.org/',
                'https://streamlit.io/',
                stamp)
-    st.markdown(footer)
-    return
+    st.markdown(FOOTER)
 
 # ---------------------------------------------------------------------------
 # -- Appearance:  Page layout...
 # ---------------------------------------------------------------------------
 
-apptitle = 'GWO glitch plotter'
-st.set_page_config(page_title=apptitle, page_icon=":sparkler:")
+APPTITLE = 'GWO glitch plotter'
+st.set_page_config(page_title=APPTITLE, page_icon=":sparkler:")
 
 # CSS tweaks:  Hide Streamlit's own version of the footer, and get rid
 # of excessive vertical padding while we're at it.
 # This must be emitted right at the start  (before emitting the title!)
 # in order to have the page look right immediately when it is visited.
-hide_st_footer = """
+HIDE_ST_FOOTER = """
 <style>
 footer {visibility: hidden;}
 
@@ -266,25 +264,25 @@ footer {visibility: hidden;}
 }
 </style>
 """
-st.markdown(hide_st_footer, unsafe_allow_html=True)
+st.markdown(HIDE_ST_FOOTER, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # ...colors and colormaps...
 # ---------------------------------------------------------------------------
 
-primary_color = st.get_option("theme.primaryColor") # '#0F2CA4'
-vline_color = 'orange'
+PRIMARY_COLOR = st.get_option("theme.primaryColor") # '#0F2CA4'
+VLINE_COLOR = 'orange'
 
-# Both of the following are derived from primary_color and will produce
+# Both of the following are derived from PRIMARY_COLOR and will produce
 # very nearly the same shade when plotted on a white background.  The
-# transparent version becomes invisible when plotted over the primary_color,
+# transparent version becomes invisible when plotted over the PRIMARY_COLOR,
 # making it possible to plot a background curve after plotting the foreground
 # curve.
 # (If one wants the background curve to be faintly visible "through" the
 # foreground one, the transparent color shade could be made slightly lighter
 # and slightly more opaque, interpolating between the current two specs.)
-asd_light_color = '#7A89C8'
-asd_transparent_color = primary_color + '96' # '#0F2CA496'
+ASD_LIGHT_COLOR = '#7A89C8'
+ASD_TRANSPARENT_COLOR = PRIMARY_COLOR + '96' # '#0F2CA496'
 
 colormaps = {'Viridis (Gravity Spy)': 'viridis',
              'Viridis reversed': 'viridis_r',
@@ -307,13 +305,13 @@ colormap_choices = list(colormaps)
 # ...font sizes...
 # ---------------------------------------------------------------------------
 
-raw_title_fontsize = 14
-filtered_title_fontsize = 14
-asd_title_fontsize = 10
-asd_label_fontsize = 11
-asd_label_labelsize = 10
-spec_title_fontsize = 17
-qtsf_title_fontsize = 17
+RAW_TITLE_FONTSIZE = 14
+FILTERED_TITLE_FONTSIZE = 14
+ASD_TITLE_FONTSIZE = 10
+ASD_LABEL_FONTSIZE = 11
+ASD_LABEL_LABELSIZE = 10
+SPEC_TITLE_FONTSIZE = 17
+QTSF_TITLE_FONTSIZE = 17
 
 # ---------------------------------------------------------------------------
 # ...and the (in-page) title:
@@ -331,7 +329,7 @@ interferometers = list(calib_freqs_low)
 
 # The L1 view of GW170817, with the almighty ETMY saturation / ESD overflow
 # glitch a second earlier, is well known as the Gravity Spy logo.
-initial_t0_GPS = '1187008882.4'
+INITIAL_T0_GPS = '1187008882.4'
 
 # Loading time is dominated by having to wade through either one or two
 # files of 4096 seconds of strain data.  Asking for a generously sized
@@ -341,9 +339,9 @@ initial_t0_GPS = '1187008882.4'
 # Making the elbow room substantially larger than half the maximal interval
 # width we're going to plot avoids unnecessary cache-miss reloads when
 # zooming in or out to shorter or longer time ranges.  The particular
-# choice of t_elbow_room ensures that we'll always load either 96 or 128
+# choice of T_ELBOW_ROOM ensures that we'll always load either 96 or 128
 # seconds' worth when not using optional wide cache blocks locally.  It is
-# also tied to that of initial_t0_GPS:  Panning 2 or 3 seconds into the past
+# also tied to that of INITIAL_T0_GPS:  Panning 2 or 3 seconds into the past
 # or future from this timestamp should not push either edge over a 32 s
 # boundary.  (Of course this can't always be true;  jiggling a random t0
 # around by 2 or 3 seconds *can* cause a cache miss.  But I specifically
@@ -351,13 +349,13 @@ initial_t0_GPS = '1187008882.4'
 # Also, we'll be able to extract a "background" spectrum from 64s worth of
 # data cropped at time offsets up to ±12 seconds  (useless as this is when
 # the half width is larger than the offset)  without falling off the ends.
-t_elbow_room = 46.7
+T_ELBOW_ROOM = 46.7
 
 # Filtering will have to get by with less padding beyond the half width:
-t_pad = 8.0
+T_PAD = 8.0
 
 t_widths = [0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8, 16, 32, 64]
-initial_width = t_widths[5]
+INITIAL_WIDTH = t_widths[5]
 
 sample_rates = [4096, 16384]
 
@@ -396,7 +394,7 @@ asd_offsets = {'-12': -12, '-6': -6, '-3': -3, '-1.5': -1.5,
                'None': 0,
                '1.5': 1.5, '3': 3, '6': 6, '12': 12}
 asd_offset_detents = list(asd_offsets)
-asd_initial_offset = asd_offset_detents[4] # 'None'
+ASD_INITIAL_OFFSET = asd_offset_detents[4] # 'None'
 asd_initial_y = (asd_y_detents[1], asd_y_detents[-4])
 spec_initial_v = (asd_y_detents[1], asd_y_detents[-4])
 
@@ -411,11 +409,11 @@ spec_f_detents = [10, 22.6, 45.3, 90.5, 181, 362, 724, 1448, 2896, 5793]
 
 # Q-values spaced at powers of sqrt(2):
 q_values = [5.66, 8, 11.3, 16, 22.6, 32, 45.3, 64]
-initial_q = q_values[2]
+INITIAL_Q = q_values[2]
 
 # Colormap scaling for const-Q transforms:
 normalized_energies = [6.3, 12.7, 25.5, 51.1, 102.3]
-initial_ne_cutoff = normalized_energies[2]
+INITIAL_NE_CUTOFF = normalized_energies[2]
 
 # Start memory profiling if requested:
 if overrides.mem_profiling:
@@ -437,13 +435,13 @@ with st.sidebar.form('load_what'):
     interferometer = st.selectbox('**From interferometer:**',
                                   interferometers, index=1) # default L1
     t_width = st.select_slider('**load enough to visualize**',
-                               t_widths, value=initial_width)
+                               t_widths, value=INITIAL_WIDTH)
     t0_text = st.text_input('**seconds of strain data around GPS'
                             ' (or ISO 8601-formatted UTC) timestamp:**',
-                            initial_t0_GPS)
+                            INITIAL_T0_GPS)
     cache_wide_blocks = False
     if overrides.wide_cache_blocks:
-        cache_wide_blocks = st.checkbox('\- use wide cache blocks',
+        cache_wide_blocks = st.checkbox(r'\- use wide cache blocks',
                                         value=True)
     sample_rate = st.selectbox('**Sample rate:**', sample_rates)
 
@@ -452,7 +450,7 @@ with st.sidebar.form('load_what'):
                                            use_container_width=True)
 
 # Preprocess parameters which depend on the sample rate and/or interferometer:
-if (sample_rate < 16384):
+if sample_rate < 16384:
     f_detents_eff = f_detents[0:30]
     asd_f_detents_eff = f_detents[0:31]
     spec_f_detents_eff = spec_f_detents[0:8]
@@ -476,8 +474,8 @@ calib_caveat = ("Caution: Strain data below {0} Hz from {1} aren't"
                 ' calibrated.'
                 ).format(calib_freq_low, interferometer)
 
-st.sidebar.caption(' Use the "Do..." and "' "Don't..." '" options to select'
-                   ' which plots to show or skip.')
+st.sidebar.caption((' Use the "Do..." and "' "Don't..." '" options to select'
+                    ' which plots to show or skip.'))
 
 # ... filtered-plot form:
 with st.sidebar.form('plot_how'):
@@ -490,8 +488,8 @@ with st.sidebar.form('plot_how'):
 
     f_range = st.select_slider('**Bandpass limits [Hz]:**',
                                f_detents_eff, value=f_initial_range)
-    whiten_plot = st.checkbox('\- whiten before filtering', value=True)
-    filtered_vline_enabled = st.checkbox(('\- highlight t0 in raw and'
+    whiten_plot = st.checkbox(r'\- whiten before filtering', value=True)
+    filtered_vline_enabled = st.checkbox((r'\- highlight t0 in raw and'
                                           ' filtered data plots'),
                                          value=True)
 
@@ -520,10 +518,10 @@ with st.sidebar.form('asd_how'):
     asd_offset_choice = st.select_slider(('**Optional background ASD spectrum,'
                                           ' from [s] earlier or later:**'),
                                          asd_offset_detents,
-                                         value=asd_initial_offset)
+                                         value=ASD_INITIAL_OFFSET)
     asd_offset = asd_offsets[asd_offset_choice]
     # Just in case someone wants to extract a light-shaded plot:
-    asd_lighten = st.checkbox('\- swap shades: light foreground (and heavy'
+    asd_lighten = st.checkbox(r'\- swap shades: light foreground (and heavy'
                               ' background)')
 
     asd_submitted = st.form_submit_button('Apply spectrum settings',
@@ -547,9 +545,9 @@ with st.sidebar.form('spec_how'):
                                                value=spec_initial_v)
     spec_v_min, spec_v_max = (asd_y_decades[spec_v_low],
                               asd_y_decades[spec_v_high])
-    spec_grid_enabled = st.checkbox('\- enable grid overlay',
+    spec_grid_enabled = st.checkbox(r'\- enable grid overlay',
                                     value=True)
-    spec_vline_enabled = st.checkbox('\- highlight t0',
+    spec_vline_enabled = st.checkbox(r'\- highlight t0',
                                      value=True)
 
     # Default is our custom Jetstream colormap, which is similar to one
@@ -575,14 +573,14 @@ with st.sidebar.form('qtsf_how'):
 
     st.markdown('### ...render a constant-Q transform:')
 
-    q0 = st.select_slider('**Q-value:**', q_values, value=initial_q)
+    q0 = st.select_slider('**Q-value:**', q_values, value=INITIAL_Q)
     ne_cutoff = st.select_slider('**Normalized energy cutoff:**',
                                  normalized_energies,
-                                 value=initial_ne_cutoff)
-    whiten_qtsf = st.checkbox('\- whiten before transforming', value=True)
-    qtsf_grid_enabled = st.checkbox('\- enable grid overlay',
+                                 value=INITIAL_NE_CUTOFF)
+    whiten_qtsf = st.checkbox(r'\- whiten before transforming', value=True)
+    qtsf_grid_enabled = st.checkbox(r'\- enable grid overlay',
                                     value=True)
-    qtsf_vline_enabled = st.checkbox('\- highlight t0',
+    qtsf_vline_enabled = st.checkbox(r'\- highlight t0',
                                      value=True)
     # Default is Viridis  (same as Gravity Spy's):
     qtsf_colormap_choice = st.selectbox('**Q transform colormap:**',
@@ -613,8 +611,8 @@ t_cache_boundaries = ((512 if sample_rate < 16384 else 256)
                       if cache_wide_blocks else 32)
 
 t_halfwidth = t_width / 2
-t_start = t_cache_boundaries * floor((t0 - t_elbow_room)/t_cache_boundaries)
-t_end = t_cache_boundaries * ceil((t0 + t_elbow_room)/t_cache_boundaries)
+t_start = t_cache_boundaries * floor((t0 - T_ELBOW_ROOM)/t_cache_boundaries)
+t_end = t_cache_boundaries * ceil((t0 + T_ELBOW_ROOM)/t_cache_boundaries)
 t_plotstart = t0 - t_halfwidth
 t_plotend = t0 + t_halfwidth
 
@@ -640,7 +638,7 @@ else:
     t_epoch = floor(t0)
     t_major = min(1, t_width / 8)
 
-chunksize = 4096 # only used for informative messages
+CHUNK_SIZE = 4096 # only used for informative messages
 
 # ---------------------------------------------------------------------------
 # -- Data load processing...
@@ -669,13 +667,13 @@ if override_acks != '':
     st.caption(override_acks.strip('''\\
     '''))
 
-if floor(t_end / chunksize) > floor(t_start / chunksize):
+if floor(t_end / CHUNK_SIZE) > floor(t_start / CHUNK_SIZE):
     state_adv = ("Brew a pot of :tea: while we're fetching some {0} strain "
                  "data in {1} s chunks from GWOSC...")
 else:
     state_adv = ("Grab a :coffee: while we're fetching a {1} s chunk of {0} "
                  "strain data from GWOSC...")
-state_msg = state_adv.format(interferometer, chunksize)
+state_msg = state_adv.format(interferometer, CHUNK_SIZE)
 load_strain_state = st.markdown(state_msg)
 
 try:
@@ -696,7 +694,7 @@ loaded_msg = ('Loaded {0} strain data ({1} samples/s).'
 load_strain_state.markdown(loaded_msg)
 st.write('Cache block start:', t_start, ', end:', t_end,
          '; plot start:', t_plotstart, ', end:', t_plotend)
-strain_precropped = strain.crop(t_plotstart - t_pad, t_plotend + t_pad)
+strain_precropped = strain.crop(t_plotstart - T_PAD, t_plotend + T_PAD)
 
 # One extra sample ensures that the rightmost major tick will be drawn when
 # t0 is a sufficiently round number (in binary)...
@@ -735,16 +733,14 @@ st.subheader('Raw strain data')
 try:
     if np.isnan(strain_cropped.max().to_value()):
         raise DataGapError()
-    else:
-        pass
 
     with _lock:
-        figure_raw = strain_cropped.plot(color=primary_color)
+        figure_raw = strain_cropped.plot(color=PRIMARY_COLOR)
 
         raw_title = ('{0}, around {1} ({2} UTC), raw'
                      ).format(interferometer, t0, t0_iso)
         ax = figure_raw.gca()
-        ax.set_title(raw_title, fontsize=raw_title_fontsize)
+        ax.set_title(raw_title, fontsize=RAW_TITLE_FONTSIZE)
         ax.set_xscale('seconds', epoch=t_epoch)
         if t_width >= 1.0:
             ax.xaxis.set_major_locator(MultipleLocator(base=t_major))
@@ -752,7 +748,7 @@ try:
             ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
         ax.set_ylabel('dimensionless')
         if filtered_vline_enabled:
-            ax.axvline(t0, color=vline_color, linestyle='--')
+            ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
         st.pyplot(figure_raw, clear_figure=True)
 
 except DataGapError:
@@ -766,7 +762,7 @@ except DataGapError:
         figure_flag = flag_data.plot(figsize=(12, 1))
         ax = figure_flag.gca()
         ax.set_title('Available / unavailable data vs. requested interval:',
-                     fontsize=raw_title_fontsize)
+                     fontsize=RAW_TITLE_FONTSIZE)
         ax.set_xscale('seconds', epoch=floor(t0))
         if t_end - t_start == 128:
             # Major ticks appear every 15 seconds, subdivide accordingly:
@@ -778,9 +774,9 @@ except DataGapError:
         ax.yaxis.set_major_formatter(NullFormatter())
         ax.yaxis.set_major_locator(NullLocator())
         # Always highlight t0 in *this* diagram:
-        ax.axvline(t0, color=vline_color, linestyle='--')
-        ax.axvline(t_plotstart, color=primary_color, linestyle='-.')
-        ax.axvline(t_plotend, color=primary_color, linestyle='-.')
+        ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
+        ax.axvline(t_plotstart, color=PRIMARY_COLOR, linestyle='-.')
+        ax.axvline(t_plotend, color=PRIMARY_COLOR, linestyle='-.')
         st.pyplot(figure_flag, clear_figure=True)
 
     emit_footer()
@@ -814,8 +810,6 @@ if do_plot:
         # But there's a tell-tale in the data:
         if np.isnan(filtered.max()):
             raise DataGapError()
-        else:
-            pass
 
         filtered_title = ('{0}, around {1} ({2} UTC){3},'
                           ' band pass: {4} - {5} Hz'
@@ -823,10 +817,10 @@ if do_plot:
                                    wh_note, f_range[0], f_range[1])
 
         with _lock:
-            figure_filtered = filtered_cropped.plot(color=primary_color)
+            figure_filtered = filtered_cropped.plot(color=PRIMARY_COLOR)
             ax = figure_filtered.gca()
             ax.set_title(filtered_title,
-                         loc='right', fontsize=filtered_title_fontsize)
+                         loc='right', fontsize=FILTERED_TITLE_FONTSIZE)
             if whiten_plot:
                 ax.set_ylabel('arbitrary units')
             else:
@@ -837,7 +831,7 @@ if do_plot:
             if t_width <= 4.0:
                 ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
             if filtered_vline_enabled:
-                ax.axvline(t0, color=vline_color, linestyle='--')
+                ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
             st.pyplot(figure_filtered, clear_figure=True)
 
         if f_range[0] < calib_freq_low:
@@ -875,8 +869,6 @@ if do_show_asd:
         strain_asd = strain_cropped.asd()
         if np.isnan(strain_asd.max().to_value()):
             raise DataGapError()
-        else:
-            pass
 
         if not asd_offset == 0:
             strain_bgnd_asd = strain.crop(t_plotstart + asd_offset,
@@ -891,16 +883,16 @@ if do_show_asd:
         else:
             pass
 
-        asd_title = ('{0}, during {1} s around {2} GPS ({3} UTC)'
+        ASD_TITLE = ('{0}, during {1} s around {2} GPS ({3} UTC)'
                      ).format(interferometer, t_width, t0, t0_iso)
-        asd_xlabel = ('Frequency [Hz], {0} - {1} Hz'
+        ASD_XLABEL = ('Frequency [Hz], {0} - {1} Hz'
                       ).format(asd_f_range[0], asd_f_range[1])
-        asd_ylabel = r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]'
+        ASD_YLABEL = r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]'
 
         with _lock:
             figure_asd = strain_asd.plot(color=
-                                         asd_light_color if asd_lighten
-                                         else primary_color)
+                                         ASD_LIGHT_COLOR if asd_lighten
+                                         else PRIMARY_COLOR)
             ax = figure_asd.gca()
             # Now that we have the axes configured, plotting a non-existent
             # background FrequencySeries would just fail silently - but no
@@ -908,28 +900,28 @@ if do_show_asd:
             if not asd_offset == 0 and not asd_bgnd_warning:
                 ax.plot(strain_bgnd_asd,
                         label=asd_bgnd_label,
-                        color=primary_color if asd_lighten
-                        else asd_transparent_color)
+                        color=PRIMARY_COLOR if asd_lighten
+                        else ASD_TRANSPARENT_COLOR)
                 # We'll let matplotlib pick the best corner for the legend.
                 # GWpy's custom handler_map creates an example line segment
                 # that's rather thick, but with handler_map=None to reinstate
                 # matplotlib's defaults it would be too thin.
-                ax.legend(fontsize=asd_title_fontsize)
-            ax.set_title(asd_title, fontsize=asd_title_fontsize,
+                ax.legend(fontsize=ASD_TITLE_FONTSIZE)
+            ax.set_title(ASD_TITLE, fontsize=ASD_TITLE_FONTSIZE,
                          loc='right', pad=10.)
             ax.xaxis.set_major_formatter(LogFormatter(base=10))
             ax.xaxis.set_minor_formatter(MyFormatter(asd_f_range))
             ax.yaxis.set_minor_formatter(NullFormatter())
             ax.set_xlim(asd_f_range)
             ax.set_ylim(asd_y_range)
-            ax.set_ylabel(asd_ylabel, fontsize=asd_label_fontsize)
-            ax.set_xlabel(asd_xlabel, fontsize=asd_label_fontsize)
+            ax.set_ylabel(ASD_YLABEL, fontsize=ASD_LABEL_FONTSIZE)
+            ax.set_xlabel(ASD_XLABEL, fontsize=ASD_LABEL_FONTSIZE)
             ax.xaxis.set_tick_params(which='major',
-                                     labelsize=asd_label_fontsize)
+                                     labelsize=ASD_LABEL_FONTSIZE)
             ax.xaxis.set_tick_params(which='minor',
-                                     labelsize=asd_label_labelsize)
+                                     labelsize=ASD_LABEL_LABELSIZE)
             ax.yaxis.set_tick_params(which='major',
-                                     labelsize=asd_label_labelsize)
+                                     labelsize=ASD_LABEL_LABELSIZE)
             st.pyplot(figure_asd, clear_figure=True)
 
         if asd_f_range[0] < calib_freq_low:
@@ -987,7 +979,7 @@ if do_spec:
                              cax=cax, cmap=spec_colormap,
                              vmin=spec_v_min, vmax=spec_v_max,
                              norm='log')
-        ax.set_title(spec_title, fontsize=spec_title_fontsize)
+        ax.set_title(spec_title, fontsize=SPEC_TITLE_FONTSIZE)
         cax.yaxis.set_minor_formatter(NullFormatter())
         ax.grid(spec_grid_enabled)
         cax.grid(spec_grid_enabled)
@@ -999,7 +991,7 @@ if do_spec:
         ax.set_yscale('log', base=2)
         ax.set_ylim(spec_f_range)
         if spec_vline_enabled:
-            ax.axvline(t0, color=vline_color, linestyle='--')
+            ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
         st.pyplot(figure_spec, clear_figure=True)
 else:
     st.write('(Skipping spectrogram.)')
@@ -1017,7 +1009,7 @@ if do_qtsf:
         q_gram, q_warning = transform_strain(strain, interferometer,
                                              t_start, t_end,
                                              sample_rate,
-                                             t_plotstart, t_plotend, t_pad,
+                                             t_plotstart, t_plotend, T_PAD,
                                              q=q0,
                                              whiten=whiten_qtsf)
         q_error = False
@@ -1043,7 +1035,7 @@ if do_qtsf:
             figure_qgram.colorbar(label="Normalized energy",
                                   cax=cax, cmap=qtsf_colormap,
                                   clim = [0, ne_cutoff])
-            ax.set_title(qtsf_title, fontsize=qtsf_title_fontsize)
+            ax.set_title(qtsf_title, fontsize=QTSF_TITLE_FONTSIZE)
             ax.title.set_position([.5, 1.05])
             ax.grid(qtsf_grid_enabled)
             cax.grid(qtsf_grid_enabled)
@@ -1055,7 +1047,7 @@ if do_qtsf:
             ax.set_yscale('log', base=2)
             ax.set_ylim(bottom=10)
             if qtsf_vline_enabled:
-                ax.axvline(t0, color=vline_color, linestyle='--')
+                ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
             st.pyplot(figure_qgram, clear_figure=True)
 
         if q_warning > 0:
