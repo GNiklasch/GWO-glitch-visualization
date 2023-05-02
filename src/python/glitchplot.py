@@ -122,11 +122,17 @@ def load_high_rate_strain(interferometer, t_start, t_end, sample_rate=16384):
     return load_strain_impl(interferometer, t_start, t_end,
                             sample_rate=sample_rate)
 
-# Recomputing the const-Q transform doesn't take as long as plotting the
-# result does, but caching it may still improve the user experience
-# a little.
-# Streamlit can't use the strain as the hash key, but it can use what we
-# had used to fetch it - whence the dummy arguments.
+# Recomputing a spectrogram or a const-Q transform doesn't take as long
+# as plotting the results does, but caching them may still improve the
+# user experience a little.
+# Streamlit can't use the strain as the hash key, but it *can* use what
+# we had used to fetch it - whence the dummy arguments.
+@st.cache_data(max_entries=10 if overrides.large_caches else 4)
+def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
+                  t_plotstart, t_plotend, stride, overlap):
+    specgram = _strain.spectrogram(stride=stride, overlap=overlap) ** (1/2.)
+    return specgram
+
 @st.cache_data(max_entries=16 if overrides.large_caches else 4)
 def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
                      t_plotstart, t_plotend, t_pad, q, whiten):
@@ -175,12 +181,6 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
             # If this last-ditch attempt fails, the exception is raised up
             # to our call site.
     return (q_gram, q_warning)
-
-@st.cache_data(max_entries=10 if overrides.large_caches else 4)
-def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
-                  t_plotstart, t_plotend, stride, overlap):
-    specgram = _strain.spectrogram(stride=stride, overlap=overlap) ** (1/2.)
-    return specgram
 
 # ---------------------------------------------------------------------------
 # -- Timestamp conversion --
