@@ -335,7 +335,7 @@ VLINE_COLOR = 'orange'
 ASD_LIGHT_COLOR = '#7A89C8'
 ASD_TRANSPARENT_COLOR = PRIMARY_COLOR + '96' # '#0F2CA496'
 
-colormaps = {'Viridis (Gravity Spy)': 'viridis',
+COLORMAPS = {'Viridis (Gravity Spy)': 'viridis',
              'Viridis reversed': 'viridis_r',
              'Reds': 'Reds',
              'Reds reversed (GwitchHunters)': 'Reds_r',
@@ -350,7 +350,7 @@ colormaps = {'Viridis (Gravity Spy)': 'viridis',
              'Jetstream': 'jetstream',
              'Jetstream reversed': 'jetstream_r'
              }
-colormap_choices = list(colormaps)
+COLORMAP_CHOICES = list(COLORMAPS)
 
 # ---------------------------------------------------------------------------
 # ...font sizes...
@@ -405,10 +405,10 @@ T_ELBOW_ROOM = 46.7
 # Filtering will have to get by with less padding beyond the half width:
 T_PAD = 8.0
 
-t_widths = (0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8, 16, 32, 64)
-INITIAL_WIDTH = t_widths[5]
+T_WIDTHS = (0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8, 16, 32, 64)
+INITIAL_WIDTH = T_WIDTHS[5]
 
-sample_rates = (LOW_RATE, HIGH_RATE)
+SAMPLE_RATES = (LOW_RATE, HIGH_RATE)
 
 CHUNK_SIZE = 4096 # only used for informative messages
 
@@ -419,8 +419,8 @@ CHUNK_SIZE = 4096 # only used for informative messages
 # is not practical.
 # (Radio button options don't support markdown either;  and radio buttons
 # would take up too much space, as well as breaking the flow of the sentence.)
-yorn = {"Don't...": False, 'Do...': True}
-yorn_choices = list(yorn)
+YORN = {"Don't...": False, 'Do...': True}
+YORN_CHOICES = list(YORN)
 
 # Usable frequencies for filtering depend on the sample rate.
 # Thus the following will be sliced down to size as appropriate - we need
@@ -432,41 +432,41 @@ yorn_choices = list(yorn)
 # Data below calib_freqs_low[interferometer] are also unreliable.
 # (H1 in particular switched to much more aggressive VLF highpass filtering
 # during O3b on 2020-01-14.)
-f_detents = (8, 9.51, 11.3, 13.5, 16, 19.0, 22.6, 26.9,
+F_DETENTS = (8, 9.51, 11.3, 13.5, 16, 19.0, 22.6, 26.9,
              32, 38.3, 45.3, 53.8, 64, 76.1, 90.5, 108,
              128, 152, 181, 215, 256, 304, 362, 431,
              512, 609, 724, 861, 1024, 1218, 1448, 1722,
              2048, 2435, 2896, 3444, 4096, 4871, 5793)
 
 # ASD spectra and spectrograms share some of their input choices.
-asd_y_decades = {-27: 1.E-27, -26: 1.E-26, -25: 1.E-25, -24: 1.E-24,
+ASD_Y_DECADES = {-27: 1.E-27, -26: 1.E-26, -25: 1.E-25, -24: 1.E-24,
                  -23: 1.E-23, -22: 1.E-22, -21: 1.E-21, -20: 1.E-20,
                  -19: 1.E-19, -18: 1.E-18, -17: 1.E-17, -16: 1.E-16}
-asd_y_detents = list(asd_y_decades)
-asd_offsets = {'-12': -12, '-6': -6, '-3': -3, '-1.5': -1.5,
+ASD_Y_DETENTS = list(ASD_Y_DECADES)
+ASD_OFFSETS = {'-12': -12, '-6': -6, '-3': -3, '-1.5': -1.5,
                'None': 0,
                '1.5': 1.5, '3': 3, '6': 6, '12': 12}
-asd_offset_detents = list(asd_offsets)
-ASD_INITIAL_OFFSET = asd_offset_detents[4] # 'None'
-asd_initial_y = (asd_y_detents[1], asd_y_detents[-4])
-spec_initial_v = (asd_y_detents[1], asd_y_detents[-4])
+ASD_OFFSET_DETENTS = list(ASD_OFFSETS)
+ASD_INITIAL_OFFSET = ASD_OFFSET_DETENTS[4] # 'None'
+ASD_INITIAL_Y = (ASD_Y_DETENTS[1], ASD_Y_DETENTS[-4])
+SPEC_INITIAL_V = (ASD_Y_DETENTS[1], ASD_Y_DETENTS[-4])
 
 # Spectrograms will have 8 Hz resolution except for very short widths where
 # the stride will have to be adjusted down.  4 Hz (0.25 s stride) is too fine;
 # the LIGO fundamental violin modes would then get lost under the horizontal
 # grid lines.
-spec_stride = 0.125
+BASIC_SPEC_STRIDE = 0.125
 
 # View limit frequencies for spectrograms:
-spec_f_detents = (10, 22.6, 45.3, 90.5, 181, 362, 724, 1448, 2896, 5793)
+SPEC_F_DETENTS = (10, 22.6, 45.3, 90.5, 181, 362, 724, 1448, 2896, 5793)
 
 # Q-values spaced at powers of sqrt(2):
-q_values = (5.66, 8, 11.3, 16, 22.6, 32, 45.3, 64)
-INITIAL_Q = q_values[2]
+Q_VALUES = (5.66, 8, 11.3, 16, 22.6, 32, 45.3, 64)
+INITIAL_Q = Q_VALUES[2]
 
 # Colormap scaling for const-Q transforms:
-normalized_energies = (6.3, 12.7, 25.5, 51.1, 102.3)
-INITIAL_NE_CUTOFF = normalized_energies[2]
+NORMALIZED_ENERGIES = (6.3, 12.7, 25.5, 51.1, 102.3)
+INITIAL_NE_CUTOFF = NORMALIZED_ENERGIES[2]
 
 # Start memory profiling if requested:
 if overrides.mem_profiling:
@@ -488,7 +488,7 @@ with st.sidebar.form('load_what'):
     interferometer = st.selectbox('**From interferometer:**',
                                   interferometers, index=1) # default L1
     t_width = st.select_slider('**load enough to visualize**',
-                               t_widths, value=INITIAL_WIDTH)
+                               T_WIDTHS, value=INITIAL_WIDTH)
     t0_text = st.text_input('**seconds of strain data around GPS'
                             ' (or ISO 8601-formatted UTC) timestamp:**',
                             INITIAL_T0_GPS)
@@ -496,7 +496,7 @@ with st.sidebar.form('load_what'):
     if overrides.wide_cache_blocks:
         cache_wide_blocks = st.checkbox(r'\- use wide cache blocks',
                                         value=True)
-    sample_rate = st.selectbox('**Sample rate:**', sample_rates)
+    sample_rate = st.selectbox('**Sample rate:**', SAMPLE_RATES)
 
     load_submitted = st.form_submit_button('Load and plot raw data',
                                            type='primary',
@@ -504,16 +504,16 @@ with st.sidebar.form('load_what'):
 
 # Preprocess parameters which depend on the sample rate and/or interferometer:
 if sample_rate < HIGH_RATE:
-    f_detents_eff = f_detents[0:30]
-    asd_f_detents_eff = f_detents[0:31]
-    spec_f_detents_eff = spec_f_detents[0:8]
+    f_detents_eff = F_DETENTS[0:30]
+    asd_f_detents_eff = F_DETENTS[0:31]
+    spec_f_detents_eff = SPEC_F_DETENTS[0:8]
     spec_figsize = (12, 6)
     qtsf_figsize = (12, 7)
     load_strain = load_low_rate_strain
 else:
-    f_detents_eff = f_detents[0:38]
-    asd_f_detents_eff = f_detents
-    spec_f_detents_eff = spec_f_detents
+    f_detents_eff = F_DETENTS[0:38]
+    asd_f_detents_eff = F_DETENTS
+    spec_f_detents_eff = SPEC_F_DETENTS
     spec_figsize = (12, 7)
     qtsf_figsize = (12, 8)
     load_strain = load_high_rate_strain
@@ -534,9 +534,9 @@ st.sidebar.caption((' Use the "Do..." and "' "Don't..." '" options to select'
 # ... filtered-plot form:
 with st.sidebar.form('plot_how'):
     # Default here is "Don't".
-    do_plot_txt = st.selectbox('Shall we plot?', yorn_choices,
+    do_plot_txt = st.selectbox('Shall we plot?', YORN_CHOICES,
                                label_visibility = 'collapsed')
-    do_plot = yorn[do_plot_txt]
+    do_plot = YORN[do_plot_txt]
 
     st.markdown('### ...filter and plot filtered data:')
 
@@ -555,9 +555,9 @@ with st.sidebar.form('plot_how'):
 # ... ASD spectrum form:
 with st.sidebar.form('asd_how'):
     # Default is "Don't".
-    do_show_asd_txt = st.selectbox('Shall we show ASD?', yorn_choices,
+    do_show_asd_txt = st.selectbox('Shall we show ASD?', YORN_CHOICES,
                                    label_visibility = 'collapsed')
-    do_show_asd = yorn[do_show_asd_txt]
+    do_show_asd = YORN[do_show_asd_txt]
 
     st.markdown('### ...show amplitude spectral density as a spectrum:')
 
@@ -566,14 +566,14 @@ with st.sidebar.form('asd_how'):
                                    value=asd_initial_f_range)
     asd_y_low, asd_y_high = st.select_slider(('**Spectrum ASD range,'
                                               ' decades:**'),
-                                             asd_y_detents,
-                                             value=asd_initial_y)
-    asd_y_range = (asd_y_decades[asd_y_low], asd_y_decades[asd_y_high])
+                                             ASD_Y_DETENTS,
+                                             value=ASD_INITIAL_Y)
+    asd_y_range = (ASD_Y_DECADES[asd_y_low], ASD_Y_DECADES[asd_y_high])
     asd_offset_choice = st.select_slider(('**Optional background ASD spectrum,'
                                           ' from [s] earlier or later:**'),
-                                         asd_offset_detents,
+                                         ASD_OFFSET_DETENTS,
                                          value=ASD_INITIAL_OFFSET)
-    asd_offset = asd_offsets[asd_offset_choice]
+    asd_offset = ASD_OFFSETS[asd_offset_choice]
     # Just in case someone wants to extract a light-shaded plot:
     asd_lighten = st.checkbox(r'\- swap shades: light foreground (and heavy'
                               ' background)')
@@ -585,9 +585,9 @@ with st.sidebar.form('asd_how'):
 # ... Spectrogram form:
 with st.sidebar.form('spec_how'):
     # Default here is "Don't".
-    do_spec_txt = st.selectbox('Shall we spec?', yorn_choices,
+    do_spec_txt = st.selectbox('Shall we spec?', YORN_CHOICES,
                                label_visibility = 'collapsed')
-    do_spec = yorn[do_spec_txt]
+    do_spec = YORN[do_spec_txt]
 
     st.markdown('### ...show a spectrogram:')
     spec_f_range = st.select_slider('**Spectrogram frequency range [Hz]:**',
@@ -595,10 +595,10 @@ with st.sidebar.form('spec_how'):
                                    value=spec_initial_f_range)
     spec_v_low, spec_v_high = st.select_slider(('**Spectrogram ASD range,'
                                                 ' decades:**'),
-                                               asd_y_detents,
-                                               value=spec_initial_v)
-    spec_v_min, spec_v_max = (asd_y_decades[spec_v_low],
-                              asd_y_decades[spec_v_high])
+                                               ASD_Y_DETENTS,
+                                               value=SPEC_INITIAL_V)
+    spec_v_min, spec_v_max = (ASD_Y_DECADES[spec_v_low],
+                              ASD_Y_DECADES[spec_v_high])
     spec_grid_enabled = st.checkbox(r'\- enable grid overlay',
                                     value=True)
     spec_vline_enabled = st.checkbox(r'\- highlight t0',
@@ -609,9 +609,9 @@ with st.sidebar.form('spec_how'):
     # Streamlit doesn't allow negative indices counting backward from
     # the end of the selectbox options...
     spec_colormap_choice = st.selectbox('**Spectrogram colormap:**',
-                                        colormap_choices,
-                                        index=len(colormap_choices)-2)
-    spec_colormap = colormaps[spec_colormap_choice]
+                                        COLORMAP_CHOICES,
+                                        index=len(COLORMAP_CHOICES)-2)
+    spec_colormap = COLORMAPS[spec_colormap_choice]
 
     spec_submitted = st.form_submit_button('Apply spectrogram settings',
                                            type='primary',
@@ -620,16 +620,16 @@ with st.sidebar.form('spec_how'):
 # ... Q-transform form:
 with st.sidebar.form('qtsf_how'):
     # Default here is 'Do'.
-    do_qtsf_txt = st.selectbox('Shall we qtsf?', yorn_choices,
+    do_qtsf_txt = st.selectbox('Shall we qtsf?', YORN_CHOICES,
                                label_visibility = 'collapsed',
                                index=1)
-    do_qtsf = yorn[do_qtsf_txt]
+    do_qtsf = YORN[do_qtsf_txt]
 
     st.markdown('### ...render a constant-Q transform:')
 
-    q0 = st.select_slider('**Q-value:**', q_values, value=INITIAL_Q)
+    q0 = st.select_slider('**Q-value:**', Q_VALUES, value=INITIAL_Q)
     ne_cutoff = st.select_slider('**Normalized energy cutoff:**',
-                                 normalized_energies,
+                                 NORMALIZED_ENERGIES,
                                  value=INITIAL_NE_CUTOFF)
     whiten_qtsf = st.checkbox(r'\- whiten before transforming', value=True)
     qtsf_grid_enabled = st.checkbox(r'\- enable grid overlay',
@@ -638,9 +638,9 @@ with st.sidebar.form('qtsf_how'):
                                      value=True)
     # Default is Viridis  (same as Gravity Spy's):
     qtsf_colormap_choice = st.selectbox('**Q transform colormap:**',
-                                        colormap_choices,
+                                        COLORMAP_CHOICES,
                                         index=0)
-    qtsf_colormap = colormaps[qtsf_colormap_choice]
+    qtsf_colormap = COLORMAPS[qtsf_colormap_choice]
 
     qtsf_submitted = st.form_submit_button('Apply Q transform settings',
                                            type='primary',
@@ -1008,8 +1008,7 @@ if do_spec:
 
     SPEC_TITLE = ('{0}, around {1} GPS ({2} UTC)'
                   ).format(interferometer, t0, t0_iso)
-    if spec_stride > t_width / 8:
-        spec_stride = t_width / 8
+    spec_stride = min(t_width / 8, BASIC_SPEC_STRIDE)
     spec_overlap = spec_stride / 4
     specgram = make_specgram(strain_cropped,
                              interferometer, t_start, t_end, sample_rate,
