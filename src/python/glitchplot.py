@@ -128,12 +128,14 @@ def _load_strain_impl(interferometer, t_start, t_end, sample_rate=4096):
 # For local use where more than 1 GiB of RAM is available, we may use wider
 # cache blocks  (typically 512 s at the low sample rate)  when requested.
 @st.cache_data(max_entries=16 if overrides.large_caches else 8)
+# pylint: disable=W0621
 def load_low_rate_strain(interferometer, t_start, t_end, sample_rate=4096):
     """Cacheable wrapper around low-sample-rate data fetching"""
     return _load_strain_impl(interferometer, t_start, t_end,
                             sample_rate=sample_rate)
 
 @st.cache_data(max_entries=8 if overrides.large_caches else 3)
+# pylint: disable=W0621
 def load_high_rate_strain(interferometer, t_start, t_end, sample_rate=16384):
     """Cacheable wrapper around high-sample-rate data fetching"""
     return _load_strain_impl(interferometer, t_start, t_end,
@@ -145,6 +147,7 @@ def load_high_rate_strain(interferometer, t_start, t_end, sample_rate=16384):
 # Streamlit can't use the strain as the hash key, but it *can* use what
 # we had used to fetch it - whence the dummy arguments.
 @st.cache_data(max_entries=10 if overrides.large_caches else 4)
+# pylint: disable=W0621
 def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
                   t_plotstart, t_plotend, stride, overlap):
     """Cacheable wrapper around TimeSeries.spectogram()"""
@@ -153,6 +156,7 @@ def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
     return specgram
 
 @st.cache_data(max_entries=16 if overrides.large_caches else 4)
+# pylint: disable=W0621
 def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
                      t_plotstart, t_plotend, t_pad, q, whiten):
     """Cacheable wrapper around TimeSeries.q_transform(), with graceful
@@ -1117,3 +1121,26 @@ emit_footer()
 if overrides.mem_profiling:
     print('[-- At script end --]')
     print_mem_profile(8)
+
+# ---------------------------------------------------------------------------
+# A few Pylint notes:
+# 1. Pylint (running as a GitHub workflow) only knows about the standard
+# library.  It has no way of looking inside matplotlib.ticker to see that
+# our custom Formatter needs no further public methods, nor of looking inside
+# Streamlit to see that its cache_data decorators really use our "unused"
+# additional function arguments.
+# 2. It does not know that this script, as a web application, needs to be
+# the exception handler of last resort.  Yes, we do want to catch *all*
+# kinds of exceptions in several places and display a meaningful message
+# rather than a Python backtrace to the end user when there's nothing
+# better we can do.
+# 3. It has some ideas of its own about what is a "constant" and what is a
+# "variable", and they do not always agree with how identifiers are used in
+# a typical Streamlit setting.  I'm not entirely convinced that following
+# its uppercase recommendations improves readability in all cases.
+# Then again, it *doesn't* warn about identifiers that *are* used to
+# refer to constant non-scalar things, like lists or dicts...
+# 4. Then again, it is perfectly happy with our mixing of predefined
+# constants with ad-hoc one-shot literal constants.  Different choices
+# could have been made in this regard - it is not always clear what's
+# going to be best for readability.
