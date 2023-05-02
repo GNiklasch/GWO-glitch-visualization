@@ -29,6 +29,7 @@ import argparse
 import gc
 import tracemalloc
 
+# pylint: disable=E0401
 import streamlit as st
 import numpy as np
 from gwpy.timeseries import TimeSeries, StateTimeSeries
@@ -102,7 +103,7 @@ LOW_RATE, HIGH_RATE = (4096, 16384)
 # -- Helper methods: cacheable data...
 # ---------------------------------------------------------------------------
 
-# pylint: disable-next=W0621
+# pylint: disable-next=redefined-outer-name
 def _load_strain_impl(interferometer, t_start, t_end, sample_rate=LOW_RATE):
     """Workhorse wrapper around TimeSeries.fetch_open_data()"""
     # Work around bug #1612 in GWpy:  fetch_open_data() would fail if t_end
@@ -134,7 +135,7 @@ def _load_strain_impl(interferometer, t_start, t_end, sample_rate=LOW_RATE):
 # For local use where more than 1 GiB of RAM is available, we may use wider
 # cache blocks  (typically 512 s at the low sample rate)  when requested.
 @st.cache_data(max_entries=16 if overrides.large_caches else 8)
-# pylint: disable-next=W0621
+# pylint: disable-next=redefined-outer-name
 def load_low_rate_strain(interferometer, t_start, t_end,
                          sample_rate=LOW_RATE):
     """Cacheable wrapper around low-sample-rate data fetching"""
@@ -142,7 +143,7 @@ def load_low_rate_strain(interferometer, t_start, t_end,
                             sample_rate=sample_rate)
 
 @st.cache_data(max_entries=8 if overrides.large_caches else 3)
-# pylint: disable-next=W0621
+# pylint: disable-next=redefined-outer-name
 def load_high_rate_strain(interferometer, t_start, t_end,
                           sample_rate=HIGH_RATE):
     """Cacheable wrapper around high-sample-rate data fetching"""
@@ -155,7 +156,7 @@ def load_high_rate_strain(interferometer, t_start, t_end,
 # Streamlit can't use the strain as the hash key, but it *can* use what
 # we had used to fetch it - whence the dummy arguments.
 @st.cache_data(max_entries=10 if overrides.large_caches else 4)
-# pylint: disable-next=W0621
+# pylint: disable-next=too-many-arguments, redefined-outer-name
 def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
                   t_plotstart, t_plotend, stride, overlap):
     """Cacheable wrapper around TimeSeries.spectogram()"""
@@ -164,7 +165,7 @@ def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
     return specgram
 
 @st.cache_data(max_entries=16 if overrides.large_caches else 4)
-# pylint: disable-next=W0621
+# pylint: disable-next=too-many-arguments, redefined-outer-name
 def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
                      t_plotstart, t_plotend, t_pad, q, whiten):
     """Cacheable wrapper around TimeSeries.q_transform(), with graceful
@@ -229,6 +230,7 @@ def gps_to_isot(val):
     return atime.Time(val=atime.Time(val=val, scale='tai', format='gps'),
                       scale='utc', format='isot').to_string()
 
+# pylint: disable-next=redefined-builtin
 def iso_to_gps(val, format='isot'):
     """Convert a UTC date/time in ISO 8601 format with a literal 'T'
     separating date and time to a GPS timestamp."""
@@ -275,7 +277,7 @@ def emit_footer() -> None:
     st.divider()
     stamp = atime.Time(atime.Time.now(),
                        scale='utc', format='isot').to_string()
-    FOOTER = r"""
+    footer = r"""
     View the [source code on GitHub]({0}).\\
     Inspired by [GW Quickview]({1}).\\
     Powered by [GWpy]({2}); fed with [data]({3}) hosted by the [GWOSC]({4}).\\
@@ -288,7 +290,7 @@ def emit_footer() -> None:
                'https://gwosc.org/',
                'https://streamlit.io/',
                stamp)
-    st.markdown(FOOTER)
+    st.markdown(footer)
 
 # ---------------------------------------------------------------------------
 # -- Appearance:  Page layout...
@@ -1152,3 +1154,5 @@ if overrides.mem_profiling:
 # constants with ad-hoc one-shot literal constants.  Different choices
 # could have been made in this regard - it is not always clear what's
 # going to be best for readability.
+
+# pylint: disable=too-many-lines
