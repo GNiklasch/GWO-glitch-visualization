@@ -36,7 +36,8 @@ from matplotlib.ticker import LogFormatter, NullFormatter, \
 from math import ceil, floor
 import argparse
 
-# memory profiling
+# memory management and profiling
+import gc
 import tracemalloc
 
 # customizations
@@ -80,7 +81,7 @@ class DataGapError(ValueError):
     pass
 
 # ---------------------------------------------------------------------------
-# -- Helper methods --
+# -- Helper methods: cacheable data...
 # ---------------------------------------------------------------------------
 
 def load_strain_impl(interferometer, t_start, t_end, sample_rate=4096):
@@ -174,16 +175,16 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
             q_warning = 2
             # One last try, with no padding:
             strain_cropped = _strain.crop(t_plotstart, t_plotend)
+            # Here, the default fduration=2 applies.
             q_gram = strain_cropped.q_transform(outseg=outseg, qrange=(q, q),
                                                 logf = True, fres = fres,
                                                 whiten=whiten)
-            # Here, the default fduration=2 applies.
             # If this last-ditch attempt fails, the exception is raised up
             # to our call site.
     return (q_gram, q_warning)
 
 # ---------------------------------------------------------------------------
-# -- Timestamp conversion --
+# ...timestamp conversion...
 # ---------------------------------------------------------------------------
 
 def gps_to_isot(val):
@@ -205,16 +206,21 @@ def any_to_gps(val):
     return t
 
 # ---------------------------------------------------------------------------
-# -- Appearance --
+# ...memory profiling...
 # ---------------------------------------------------------------------------
 
-# Page layout...
+def print_mem_profile(tops = 8):
+    snapshot = tracemalloc.take_snapshot()
+    top_stats = snapshot.statistics('lineno')
+    print('[- Top {0} -]'.format(tops))
+    for stat in top_stats[:tops]:
+        print(stat)
+    print('----------------')
 
-apptitle = 'GWO glitch plotter'
-st.set_page_config(page_title=apptitle, page_icon=":sparkler:")
+# ---------------------------------------------------------------------------
+# ...page footer --
+# ---------------------------------------------------------------------------
 
-# Encapsulate the footer material, so we can display it early in case we
-# need to bail out prematurely:
 def emit_footer() -> None:
     st.divider()
     stamp = atime.Time(atime.Time.now(),
@@ -234,6 +240,13 @@ def emit_footer() -> None:
                stamp)
     st.markdown(footer)
     return
+
+# ---------------------------------------------------------------------------
+# -- Appearance:  Page layout...
+# ---------------------------------------------------------------------------
+
+apptitle = 'GWO glitch plotter'
+st.set_page_config(page_title=apptitle, page_icon=":sparkler:")
 
 # CSS tweaks:  Hide Streamlit's own version of the footer, and get rid
 # of excessive vertical padding while we're at it.
@@ -255,7 +268,9 @@ footer {visibility: hidden;}
 """
 st.markdown(hide_st_footer, unsafe_allow_html=True)
 
-# ... colors and colormaps...
+# ---------------------------------------------------------------------------
+# ...colors and colormaps...
+# ---------------------------------------------------------------------------
 
 primary_color = st.get_option("theme.primaryColor") # '#0F2CA4'
 vline_color = 'orange'
@@ -288,7 +303,9 @@ colormaps = {'Viridis (Gravity Spy)': 'viridis',
              }
 colormap_choices = list(colormaps)
 
-# ... font sizes..
+# ---------------------------------------------------------------------------
+# ...font sizes...
+# ---------------------------------------------------------------------------
 
 raw_title_fontsize = 14
 filtered_title_fontsize = 14
@@ -298,7 +315,9 @@ asd_label_labelsize = 10
 spec_title_fontsize = 17
 qtsf_title_fontsize = 17
 
-# ... and the (in-page) title:
+# ---------------------------------------------------------------------------
+# ...and the (in-page) title:
+# ---------------------------------------------------------------------------
 
 st.title('Plot glitches from GWOSC-sourced strain data')
 
@@ -462,9 +481,9 @@ st.sidebar.caption(' Use the "Do..." and "' "Don't..." '" options to select'
 
 # ... filtered-plot form:
 with st.sidebar.form('plot_how'):
+    # Default here is "Don't".
     do_plot_txt = st.selectbox('Shall we plot?', yorn_choices,
                                label_visibility = 'collapsed')
-    # Default here is "Don't".
     do_plot = yorn[do_plot_txt]
 
     st.markdown('### ...filter and plot filtered data:')
@@ -483,9 +502,9 @@ with st.sidebar.form('plot_how'):
 
 # ... ASD spectrum form:
 with st.sidebar.form('asd_how'):
+    # Default is "Don't".
     do_show_asd_txt = st.selectbox('Shall we show ASD?', yorn_choices,
                                    label_visibility = 'collapsed')
-    # Default is "Don't".
     do_show_asd = yorn[do_show_asd_txt]
 
     st.markdown('### ...show amplitude spectral density as a spectrum:')
@@ -513,9 +532,9 @@ with st.sidebar.form('asd_how'):
 
 # ... Spectrogram form:
 with st.sidebar.form('spec_how'):
+    # Default here is "Don't".
     do_spec_txt = st.selectbox('Shall we spec?', yorn_choices,
                                label_visibility = 'collapsed')
-    # Default here is "Don't".
     do_spec = yorn[do_spec_txt]
 
     st.markdown('### ...show a spectrogram:')
@@ -532,13 +551,14 @@ with st.sidebar.form('spec_how'):
                                     value=True)
     spec_vline_enabled = st.checkbox('\- highlight t0',
                                      value=True)
-    spec_colormap_choice = st.selectbox('**Spectrogram colormap:**',
-                                        colormap_choices,
-                                        index=len(colormap_choices)-2)
+
     # Default is our custom Jetstream colormap, which is similar to one
     # used in the Virgo electronic logs.
     # Streamlit doesn't allow negative indices counting backward from
     # the end of the selectbox options...
+    spec_colormap_choice = st.selectbox('**Spectrogram colormap:**',
+                                        colormap_choices,
+                                        index=len(colormap_choices)-2)
     spec_colormap = colormaps[spec_colormap_choice]
 
     spec_submitted = st.form_submit_button('Apply spectrogram settings',
@@ -547,10 +567,10 @@ with st.sidebar.form('spec_how'):
 
 # ... Q-transform form:
 with st.sidebar.form('qtsf_how'):
+    # Default here is 'Do'.
     do_qtsf_txt = st.selectbox('Shall we qtsf?', yorn_choices,
                                label_visibility = 'collapsed',
                                index=1)
-    # Default here is 'Do'.
     do_qtsf = yorn[do_qtsf_txt]
 
     st.markdown('### ...render a constant-Q transform:')
@@ -564,10 +584,10 @@ with st.sidebar.form('qtsf_how'):
                                     value=True)
     qtsf_vline_enabled = st.checkbox('\- highlight t0',
                                      value=True)
+    # Default is Viridis  (same as Gravity Spy's):
     qtsf_colormap_choice = st.selectbox('**Q transform colormap:**',
                                         colormap_choices,
                                         index=0)
-    # Default is Viridis  (same as Gravity Spy's).
     qtsf_colormap = colormaps[qtsf_colormap_choice]
 
     qtsf_submitted = st.form_submit_button('Apply Q transform settings',
@@ -623,7 +643,7 @@ else:
 chunksize = 4096 # only used for informative messages
 
 # ---------------------------------------------------------------------------
-# -- Data load processing and raw data plot --
+# -- Data load processing...
 # ---------------------------------------------------------------------------
 
 st.info('t0 = {0} (GPS) = {1} (UTC)'.format(t0, t0_iso))
@@ -689,7 +709,23 @@ if np.isnan(strain_cropped.value[-1]):
 else:
     pass
 
+# Explicit garbage collections may well be overkill, but if we want
+# to do them at all, now is a good time - chances are we have just
+# purged an old strain entry from the cache, and local variables
+# from earlier completed runs have gone out of scope.
+gc.collect()
+
+# Summarize memory profiling if requested:
+if overrides.mem_profiling:
+    print('[-- After GC, before plotting --]')
+    print(gc.get_stats())
+    print_mem_profile(6)
+
 st.subheader('Raw strain data')
+
+# ---------------------------------------------------------------------------
+# ...and raw data plot --
+# ---------------------------------------------------------------------------
 
 # This might find no data to plot when the requested interval falls inside
 # a data gap.  The plot() method would fail silently without raising an
@@ -1043,10 +1079,7 @@ else:
 
 emit_footer()
 
-# summarize memory profiling if requested
+# Summarize memory profiling if requested:
 if overrides.mem_profiling:
-    snapshot = tracemalloc.take_snapshot()
-    top_stats = snapshot.statistics('lineno')
-    print("[ Top 12 ]")
-    for stat in top_stats[:12]:
-        print(stat)
+    print('[-- At script end --]')
+    print_mem_profile(8)
