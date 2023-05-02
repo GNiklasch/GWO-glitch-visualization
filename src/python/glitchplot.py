@@ -108,9 +108,9 @@ def load_strain_impl(interferometer, t_start, t_end, sample_rate=4096):
 # wrapper, because we want separately sized caches for low and high
 # sample rate data.
 # (With our time interval padding, caching 128 s at the low sample rate
-# amounts to a cache usage of roughly 20 MB, plus some internal overhead,
+# amounts to a cache usage of roughly 20 MiB, plus some internal overhead,
 # and a high rate cache item to four times as much.)
-# For local use where more than 1 GB of RAM is available, we may use wider
+# For local use where more than 1 GiB of RAM is available, we may use wider
 # cache blocks  (typically 512 s at the low sample rate)  when requested.
 @st.cache_data(max_entries=16 if overrides.large_caches else 8)
 def load_low_rate_strain(interferometer, t_start, t_end, sample_rate=4096):
@@ -134,7 +134,7 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
     # Without nailing down logf and fres, q_transform() would default to a
     # very high value for the number of frequency steps, somehow resulting
     # in exorbitant memory consumption for the ad-hoc modified colormaps
-    # created during plotting  (on the order of 480 MiB for a single
+    # created during plotting  (on the order of 380 MiB for a single
     # Q-transform plot at high sample rate!).
     fres = ceil(max(600, 24 * q) * (1 if sample_rate < 16384 else 1.3))
     q_warning = 0
