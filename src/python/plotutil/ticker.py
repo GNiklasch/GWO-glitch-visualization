@@ -3,6 +3,7 @@ displays frequencies between 8 Hz and just under 6000 Hz on a logarithmic
 scale.
 """
 
+# pylint: disable=E0401
 from matplotlib.ticker import Formatter
 
 # pylint: disable-next=too-few-public-methods

@@ -160,7 +160,7 @@ def load_high_rate_strain(interferometer, t_start, t_end,
 def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
                   t_plotstart, t_plotend, stride, overlap):
     """Cacheable wrapper around TimeSeries.spectogram()"""
-    # pylint: disable-next=unused-argument
+    # pylint: disable=unused-argument, redefined-outer-name
     specgram = _strain.spectrogram(stride=stride, overlap=overlap) ** (1/2.)
     return specgram
 
@@ -170,8 +170,8 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
                      t_plotstart, t_plotend, t_pad, q, whiten):
     """Cacheable wrapper around TimeSeries.q_transform(), with graceful
     backoff to reduced padding when we're (too) close to a data gap"""
+    # pylint: disable=unused-argument, redefined-outer-name
     outseg = (t_plotstart, t_plotend)
-    # pylint: disable-next=unused-argument
     # Without nailing down logf and fres, q_transform() would default to a
     # very high value for the number of frequency steps, somehow resulting
     # in exorbitant memory consumption for the ad-hoc modified colormaps

@@ -9,6 +9,8 @@ perceptually uniform gradient, and utterly unsuitable for black-and-white
 printing - even worse than Jet, which has drawn heavy criticism over the
 years.)
 """
+
+# pylint: disable=E0401
 import numpy as np
 import matplotlib as mpl
 from matplotlib.colors import ListedColormap
