@@ -43,6 +43,7 @@ class MyFormatter(Formatter):
             self._good = {}
             self._a_ok = True
 
+    # pylint: disable-next=C0103
     def __call__(self, x, pos=None):
         """
         Return the format for tick value *x* at position *pos*.
@@ -56,5 +57,6 @@ class MyFormatter(Formatter):
             # don't label half-integers or fifth-integers in the low range
             return ''
         if self._a_ok or x_int in self._good:
+            # pylint: disable-next=C0209
             return '{0:d}'.format(round(x))
         return ''

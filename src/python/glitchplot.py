@@ -18,6 +18,9 @@ own submit button, in a sidebar to the left of the main pane hosting
 the graphics.
 """
 
+
+# pylint: disable=C0103, C0209
+
 # ---------------------------------------------------------------------------
 # -- Imports and matplotlib backend sanitizing --
 # ---------------------------------------------------------------------------
@@ -1070,7 +1073,7 @@ if do_qtsf:
                                              t_start, t_end,
                                              sample_rate,
                                              t_plotstart, t_plotend, T_PAD,
-                                             q=q0,
+                                             q_val=q0,
                                              whiten=whiten_qtsf)
         q_error = False
     except ValueError:
@@ -1159,5 +1162,4 @@ if overrides.mem_profiling:
 # could have been made in this regard - it is not always clear what's
 # going to be best for readability.
 
-# pylint: disable=C0103, C0209
 # pylint: disable=too-many-lines
