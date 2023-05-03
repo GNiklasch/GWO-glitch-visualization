@@ -271,7 +271,7 @@ def print_mem_profile(tops = 8) -> None:
     """Print out some memory diagnostics."""
     snapshot = tracemalloc.take_snapshot()
     top_stats = snapshot.statistics('lineno')
-    print('[- Top {0} -]'.format(tops))
+    print(f'[- Top {tops} -]')
     for stat in top_stats[:tops]:
         print(stat)
     print('----------------')
@@ -534,12 +534,11 @@ asd_initial_f_range = (asd_f_detents_eff[1], asd_f_detents_eff[-1])
 spec_initial_f_range = (spec_f_detents_eff[0], spec_f_detents_eff[-1])
 
 calib_freq_low = calib_freqs_low[interferometer]
-calib_caveat = ("Caution: Strain data below {0} Hz from {1} aren't"
-                ' calibrated.'
-                ).format(calib_freq_low, interferometer)
+calib_caveat = f'Caution: Strain data below {calib_freq_low} Hz from' + \
+    f" {interferometer} aren't calibrated."
 
 # pylint: disable-next=implicit-str-concat
-st.sidebar.caption((' Use the "Do..." and "' "Don't..." '" options to select'
+st.sidebar.caption((''' Use the "Do..." and "Don't..." options to select'''
                     ' which plots to show or skip.'))
 
 # ... filtered-plot form:
@@ -708,7 +707,7 @@ else:
 # -- Data load processing...
 # ---------------------------------------------------------------------------
 
-st.info('t0 = {0} (GPS) = {1} (UTC)'.format(t0, t0_iso))
+st.info(f't0 = {t0} (GPS) = {t0_iso} (UTC)')
 
 override_acks = ''
 if overrides.large_caches:
@@ -747,16 +746,15 @@ try:
 # pylint: disable-next=broad-exception-caught
 except Exception:
     load_strain_state.markdown('')
-    st.warning(('Load failed; data from {0} may not be available on GWOSC for'
-                ' time {1}, or the GWOSC data service might be temporarily'
-                ' unavailable. Please try a different time and/or'
-                ' interferometer.'
-                ).format(interferometer, t0))
+    st.warning((f'Load failed; data from {interferometer} may not be'
+                f' available on GWOSC for time {t0}, or the GWOSC'
+                ' data service might be temporarily unavailable.'
+                ' Please try a different time and/or interferometer.'))
     emit_footer()
     st.stop()
 
-loaded_msg = ('Loaded {0} strain data ({1} samples/s).'
-              ).format(interferometer, sample_rate)
+loaded_msg = \
+    f'Loaded {interferometer} strain data ({sample_rate} samples/s).'
 load_strain_state.markdown(loaded_msg)
 st.write('Cache block start:', t_start, ', end:', t_end,
          '; plot start:', t_plotstart, ', end:', t_plotend)
@@ -803,10 +801,10 @@ try:
     with _lock:
         figure_raw = strain_cropped.plot(color=PRIMARY_COLOR)
 
-        RAW_TITLE = ('{0}, around {1} ({2} UTC), raw'
-                     ).format(interferometer, t0, t0_iso)
+        raw_title = f'{interferometer}, around {t0} ({t0_iso} UTC), raw'
         ax = figure_raw.gca()
-        ax.set_title(RAW_TITLE, fontsize=RAW_TITLE_FONTSIZE)
+        ax.set_title(raw_title,
+                     loc='right', fontsize=RAW_TITLE_FONTSIZE)
         ax.set_xscale('seconds', epoch=t_epoch)
         if t_width >= 1.0:
             ax.xaxis.set_major_locator(MultipleLocator(base=t_major))
@@ -877,15 +875,14 @@ if do_plot:
         if np.isnan(filtered.max()):
             raise DataGapError()
 
-        FILTERED_TITLE = ('{0}, around {1} ({2} UTC){3},'
-                          ' band pass: {4} - {5} Hz'
-                          ).format(interferometer, t0, t0_iso,
-                                   wh_note, f_range[0], f_range[1])
+        filtered_title = \
+            f'{interferometer}, around {t0} ({t0_iso} UTC){wh_note},' + \
+            f' band pass: {f_range[0]} - {f_range[1]} Hz'
 
         with _lock:
             figure_filtered = filtered_cropped.plot(color=PRIMARY_COLOR)
             ax = figure_filtered.gca()
-            ax.set_title(FILTERED_TITLE,
+            ax.set_title(filtered_title,
                          loc='right', fontsize=FILTERED_TITLE_FONTSIZE)
             if whiten_plot:
                 ax.set_ylabel('arbitrary units')
@@ -943,16 +940,17 @@ if do_show_asd:
                 asd_bgnd_warning = True
             else:
                 if asd_offset > 0:
-                    asd_bgnd_label = '{0} s later'.format(asd_offset)
+                    asd_bgnd_label = f'{asd_offset} s later'
                 else:
-                    asd_bgnd_label = '{0} s earlier'.format(-asd_offset)
+                    asd_bgnd_label = f'{-asd_offset} s earlier'
         else:
             pass
 
-        asd_title = ('{0}, during {1} s around {2} GPS ({3} UTC)'
-                     ).format(interferometer, t_width, t0, t0_iso)
-        asd_xlabel = ('Frequency [Hz], {0} - {1} Hz'
-                      ).format(asd_f_range[0], asd_f_range[1])
+        asd_title = \
+            f'{interferometer}, during {t_width} s around' + \
+            f' {t0} GPS ({t0_iso} UTC)'
+        asd_xlabel = \
+            f'Frequency [Hz], {asd_f_range[0]} - {asd_f_range[1]} Hz'
         asd_ylabel = r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]'
 
         with _lock:
@@ -1018,8 +1016,7 @@ st.divider()
 if do_spec:
     st.subheader('Spectrogram')
 
-    spec_title = ('{0}, around {1} GPS ({2} UTC)'
-                  ).format(interferometer, t0, t0_iso)
+    spec_title = f'{interferometer}, around {t0} GPS ({t0_iso} UTC)'
     spec_stride = min(t_width / 8, BASIC_SPEC_STRIDE)
     spec_overlap = spec_stride / 4
     specgram = make_specgram(strain_cropped,
@@ -1088,9 +1085,9 @@ if do_qtsf:
                  ' try varying the requested timestamp.')
     else:
         q_wh_note = ', whitened' if whiten_qtsf else ''
-        qtsf_title = ('{0}, around {1} ({2} UTC), Q={3}{4}'
-                      ).format(interferometer, t0, t0_iso,
-                               q0, q_wh_note)
+        qtsf_title = \
+            f'{interferometer}, around {t0} ({t0_iso} UTC),' + \
+            f' Q={q0}{q_wh_note}'
 
         with _lock:
             figure_qgram = q_gram.plot(figsize=qtsf_figsize)
@@ -1116,13 +1113,13 @@ if do_qtsf:
             st.pyplot(figure_qgram, clear_figure=True)
 
         if q_warning > 0:
-            q_caveat = ('t0 is close to a data gap, thus the Q-transform'
-                        ' could not look{0} beyond the edges of what has'
-                        ' been plotted and areas near these edges may'
-                        ' contain artefacts.'
-                        ' Also, information about low frequencies may be'
-                        ' insufficient to paint that region.'
-                        ).format(' far' if q_warning == 1 else '')
+            q_caveat = \
+                '''t0 is close to a data gap, thus the Q-transform could
+                not look{0} beyond the edges of what has been plotted and
+                areas near these edges may contain artefacts.
+                Also, information about low frequencies may be insufficient
+                to paint that region.
+                '''.format(' far' if q_warning == 1 else '')
             st.warning(q_caveat)
         else:
             pass
