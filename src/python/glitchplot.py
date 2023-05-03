@@ -19,6 +19,7 @@ the graphics.
 """
 
 
+# See note at end about Pylint (as a GitHub workflow).
 # pylint: disable=C0103, C0209
 
 # ---------------------------------------------------------------------------
@@ -947,11 +948,11 @@ if do_show_asd:
         else:
             pass
 
-        ASD_TITLE = ('{0}, during {1} s around {2} GPS ({3} UTC)'
+        asd_title = ('{0}, during {1} s around {2} GPS ({3} UTC)'
                      ).format(interferometer, t_width, t0, t0_iso)
-        ASD_XLABEL = ('Frequency [Hz], {0} - {1} Hz'
+        asd_xlabel = ('Frequency [Hz], {0} - {1} Hz'
                       ).format(asd_f_range[0], asd_f_range[1])
-        ASD_YLABEL = r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]'
+        asd_ylabel = r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]'
 
         with _lock:
             figure_asd = strain_asd.plot(color=
@@ -971,15 +972,15 @@ if do_show_asd:
                 # that's rather thick, but with handler_map=None to reinstate
                 # matplotlib's defaults it would be too thin.
                 ax.legend(fontsize=ASD_TITLE_FONTSIZE)
-            ax.set_title(ASD_TITLE, fontsize=ASD_TITLE_FONTSIZE,
+            ax.set_title(asd_title, fontsize=ASD_TITLE_FONTSIZE,
                          loc='right', pad=10.)
             ax.xaxis.set_major_formatter(LogFormatter(base=10))
             ax.xaxis.set_minor_formatter(MyFormatter(asd_f_range))
             ax.yaxis.set_minor_formatter(NullFormatter())
             ax.set_xlim(asd_f_range)
             ax.set_ylim(asd_y_range)
-            ax.set_ylabel(ASD_YLABEL, fontsize=ASD_LABEL_FONTSIZE)
-            ax.set_xlabel(ASD_XLABEL, fontsize=ASD_LABEL_FONTSIZE)
+            ax.set_ylabel(asd_ylabel, fontsize=ASD_LABEL_FONTSIZE)
+            ax.set_xlabel(asd_xlabel, fontsize=ASD_LABEL_FONTSIZE)
             ax.xaxis.set_tick_params(which='major',
                                      labelsize=ASD_LABEL_FONTSIZE)
             ax.xaxis.set_tick_params(which='minor',
@@ -1016,7 +1017,7 @@ st.divider()
 if do_spec:
     st.subheader('Spectrogram')
 
-    SPEC_TITLE = ('{0}, around {1} GPS ({2} UTC)'
+    spec_title = ('{0}, around {1} GPS ({2} UTC)'
                   ).format(interferometer, t0, t0_iso)
     spec_stride = min(t_width / 8, BASIC_SPEC_STRIDE)
     spec_overlap = spec_stride / 4
@@ -1042,7 +1043,7 @@ if do_spec:
                              cax=cax, cmap=spec_colormap,
                              vmin=spec_v_min, vmax=spec_v_max,
                              norm='log')
-        ax.set_title(SPEC_TITLE, fontsize=SPEC_TITLE_FONTSIZE)
+        ax.set_title(spec_title, fontsize=SPEC_TITLE_FONTSIZE)
         cax.yaxis.set_minor_formatter(NullFormatter())
         ax.grid(spec_grid_enabled)
         cax.grid(spec_grid_enabled)
@@ -1086,7 +1087,7 @@ if do_qtsf:
                  ' try varying the requested timestamp.')
     else:
         q_wh_note = ', whitened' if whiten_qtsf else ''
-        QTSF_TITLE = ('{0}, around {1} ({2} UTC), Q={3}{4}'
+        qtsf_title = ('{0}, around {1} ({2} UTC), Q={3}{4}'
                       ).format(interferometer, t0, t0_iso,
                                q0, q_wh_note)
 
@@ -1098,7 +1099,7 @@ if do_qtsf:
             figure_qgram.colorbar(label="Normalized energy",
                                   cax=cax, cmap=qtsf_colormap,
                                   clim=(0, ne_cutoff))
-            ax.set_title(QTSF_TITLE, fontsize=QTSF_TITLE_FONTSIZE)
+            ax.set_title(qtsf_title, fontsize=QTSF_TITLE_FONTSIZE)
             ax.title.set_position([.5, 1.05])
             ax.grid(qtsf_grid_enabled)
             cax.grid(qtsf_grid_enabled)
