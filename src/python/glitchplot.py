@@ -103,9 +103,9 @@ LOW_RATE, HIGH_RATE = (4096, 16384)
 # -- Helper methods: cacheable data...
 # ---------------------------------------------------------------------------
 
-# pylint: disable-next=redefined-outer-name
 def _load_strain_impl(interferometer, t_start, t_end, sample_rate=LOW_RATE):
     """Workhorse wrapper around TimeSeries.fetch_open_data()"""
+    # pylint: disable=redefined-outer-name
     # Work around bug #1612 in GWpy:  fetch_open_data() would fail if t_end
     # falls on  (or a fraction of a second before)  the boundary between
     # two successive 4096 s chunks.  Asking for a fraction of a second
@@ -135,18 +135,18 @@ def _load_strain_impl(interferometer, t_start, t_end, sample_rate=LOW_RATE):
 # For local use where more than 1 GiB of RAM is available, we may use wider
 # cache blocks  (typically 512 s at the low sample rate)  when requested.
 @st.cache_data(max_entries=16 if overrides.large_caches else 8)
-# pylint: disable-next=redefined-outer-name
 def load_low_rate_strain(interferometer, t_start, t_end,
                          sample_rate=LOW_RATE):
     """Cacheable wrapper around low-sample-rate data fetching"""
+    # pylint: disable=redefined-outer-name
     return _load_strain_impl(interferometer, t_start, t_end,
                             sample_rate=sample_rate)
 
 @st.cache_data(max_entries=8 if overrides.large_caches else 3)
-# pylint: disable-next=redefined-outer-name
 def load_high_rate_strain(interferometer, t_start, t_end,
                           sample_rate=HIGH_RATE):
     """Cacheable wrapper around high-sample-rate data fetching"""
+    # pylint: disable=redefined-outer-name
     return _load_strain_impl(interferometer, t_start, t_end,
                             sample_rate=sample_rate)
 
@@ -167,7 +167,7 @@ def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
 @st.cache_data(max_entries=16 if overrides.large_caches else 4)
 # pylint: disable-next=too-many-arguments, redefined-outer-name
 def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
-                     t_plotstart, t_plotend, t_pad, q, whiten):
+                     t_plotstart, t_plotend, t_pad, q_val, whiten):
     """Cacheable wrapper around TimeSeries.q_transform(), with graceful
     backoff to reduced padding when we're (too) close to a data gap"""
     # pylint: disable=unused-argument, redefined-outer-name
@@ -177,7 +177,8 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
     # in exorbitant memory consumption for the ad-hoc modified colormaps
     # created during plotting  (on the order of 380 MiB for a single
     # Q-transform plot at high sample rate!).
-    fres = ceil(max(600, 24 * q) * (1 if sample_rate < HIGH_RATE else 1.3))
+    fres = ceil(max(600, 24 * q_val) *
+                (1 if sample_rate < HIGH_RATE else 1.3))
     q_warning = 0
     try:
         # The q_transform output would be distorted when the available strain
@@ -192,7 +193,8 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
                       t_plotstart - t_start)
         strain_cropped = _strain.crop(t_plotstart - padding,
                                       t_plotend + padding)
-        q_gram = strain_cropped.q_transform(outseg=outseg, qrange=(q, q),
+        q_gram = strain_cropped.q_transform(outseg=outseg,
+                                            qrange=(q_val, q_val),
                                             logf = True, fres = fres,
                                             whiten=whiten, fduration=t_pad)
     except ValueError:
@@ -201,7 +203,8 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
             # ...with less padding:
             strain_cropped = _strain.crop(t_plotstart - t_pad,
                                           t_plotend + t_pad)
-            q_gram = strain_cropped.q_transform(outseg=outseg, qrange=(q, q),
+            q_gram = strain_cropped.q_transform(outseg=outseg,
+                                                qrange=(q_val, q_val),
                                                 logf = True, fres = fres,
                                                 whiten=whiten,
                                                 fduration=t_pad)
@@ -210,7 +213,8 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
             # One last try, with no padding:
             strain_cropped = _strain.crop(t_plotstart, t_plotend)
             # Here, the default fduration=2 applies.
-            q_gram = strain_cropped.q_transform(outseg=outseg, qrange=(q, q),
+            q_gram = strain_cropped.q_transform(outseg=outseg,
+                                                qrange=(q_val, q_val),
                                                 logf = True, fres = fres,
                                                 whiten=whiten)
             # If this last-ditch attempt fails, the exception is raised up
@@ -244,16 +248,16 @@ def any_to_gps(val):
     time and date, optionally with a trailing 'Z', or text that can be
     parsed as a floating point number representing a GPS timestamp."""
     try:
-        t = iso_to_gps(val=val)
+        t_gps = iso_to_gps(val=val)
     # pylint: disable-next=broad-exception-caught
     except Exception:
         try:
             # pylint: disable-next=redefined-builtin
-            t = iso_to_gps(val=val, format='iso')
+            t_gps = iso_to_gps(val=val, format='iso')
         # pylint: disable-next=broad-exception-caught
         except Exception:
-            t=float(val)
-    return t
+            t_gps = float(val)
+    return t_gps
 
 # ---------------------------------------------------------------------------
 # ...memory profiling...
@@ -1155,4 +1159,5 @@ if overrides.mem_profiling:
 # could have been made in this regard - it is not always clear what's
 # going to be best for readability.
 
+# pylint: disable=C0103, C0209
 # pylint: disable=too-many-lines
