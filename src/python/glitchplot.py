@@ -364,14 +364,16 @@ COLORMAPS = {'Viridis (Gravity Spy)': 'viridis',
 COLORMAP_CHOICES = list(COLORMAPS)
 
 # ---------------------------------------------------------------------------
-# ...font sizes...
+# ...figure and font sizes...
 # ---------------------------------------------------------------------------
+
+ASD_FIGSIZE = (10, 8)
 
 RAW_TITLE_FONTSIZE = 14
 FILTERED_TITLE_FONTSIZE = 14
-ASD_TITLE_FONTSIZE = 10
-ASD_LABEL_FONTSIZE = 11
-ASD_LABEL_LABELSIZE = 10
+ASD_TITLE_FONTSIZE = 14
+ASD_LABEL_FONTSIZE = 13
+ASD_LABEL_LABELSIZE = 11
 SPEC_TITLE_FONTSIZE = 17
 QTSF_TITLE_FONTSIZE = 17
 
@@ -954,7 +956,8 @@ if do_show_asd:
         asd_ylabel = r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]'
 
         with _lock:
-            figure_asd = strain_asd.plot(color=
+            figure_asd = strain_asd.plot(figsize=ASD_FIGSIZE,
+                                         color=
                                          ASD_LIGHT_COLOR if asd_lighten
                                          else PRIMARY_COLOR)
             ax = figure_asd.gca()
