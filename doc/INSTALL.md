@@ -27,7 +27,8 @@ or, if you already have a [GitHub](https://github.com/) account, first create yo
 
 ### (2) Prepare the virtual environment:
 
-#### (2.1) At your commandline prompt in a terminal window, change into the `GWO-glitch-visualization` directory of the unpacked or cloned repository.
+#### (2.1) Change into the `GWO-glitch-visualization` directory
+of the unpacked or cloned repository at your commandline prompt in a terminal window.
 
 #### (2.2) Create the virtual environment:
 ```
