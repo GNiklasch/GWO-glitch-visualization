@@ -1,8 +1,8 @@
-## Installing the web app for local use
+## Installing the web app for local use[^1]
 
 ### (0) Prerequisites:
 
-- A web browser (Firefox recommended),
+- A web browser (Firefox recommended[^2]),
 - network connectivity to the [Gravitational Wave Open Science Center](https://gwosc.org/) website,
 - a working Python 3.7 (or newer) runtime,
 - [Pipenv](https://pipenv.pypa.io/en/latest/),
@@ -76,3 +76,22 @@ To restart it later, return to step (3.2).
 If you no longer need the pipenv shell, `exit` from it. You'll have to pick up at step (3.1) the next time.
 
 ### (5) *Enjoy!*
+
+---
+
+#### Footnotes:
+
+[^1]: Or simply visit the web app
+  [in the cloud](https://gwo-glitch-plotter.streamlit.app/).
+  Tradeoffs: The data loads from GWOSC may run quicker in the cloud server,
+  but it runs in a limited amount of RAM and therefore with a data cache
+  limited in size, and you'll be sharing the cache with other users.
+  Also, the cloud server may be rebooted at unexpected moments,
+  disrupting all user sessions. Also, occasionally the whole Streamlit
+  Community Cloud will be in maintenance.
+  A local installation benefits from lots of RAM and from a fast network
+  connection, and it allows you to experiment with code modifications.
+[^2]: Safari has some peculiarities that don't play well with Streamlit-based
+  web applications. In particular, it sometimes spontaneously decides to
+  forget everything about the current page and to reload it from scratch,
+  losing the current session state.
