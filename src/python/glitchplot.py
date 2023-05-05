@@ -813,6 +813,8 @@ else:
 
 st.info(f't0 = {t0} (GPS) = {t0_iso} (UTC)')
 
+# The following calls for a single `st.caption()` call to avoid excessive
+# vertical space, but also for hard line breaks via markdown.
 override_acks = ''
 if overrides.large_caches:
     override_acks += '''Using larger-sized strain data caches.\\
@@ -827,12 +829,14 @@ if overrides.url_caching:
 if overrides.mem_profiling:
     override_acks += '''Memory profiling enabled;  watch the logs.\\
     '''
-# Streamlit quirk:  st.caption() strips a trailing newline from its
-# argument, thus a trailing backslash-backslash-newline would end up
-# displaying a single backslash.
+# Streamlit quirk:  `st.caption()` strips a trailing newline from its
+# argument, thus a trailing backslash-newline would end up displaying
+# a single backslash.  So we need to chop off this final pair ourselves.
+# Unlike `str.removesuffix()`, which gets confused by the newline,
+# the odd-looking `str.strip()` does the right thing.
 if override_acks != '':
-    # pylint: disable-next=bad-str-strip-call
     st.caption(
+        # pylint: disable-next=bad-str-strip-call
         override_acks.strip(
             '''\\
             '''
