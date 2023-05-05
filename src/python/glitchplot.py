@@ -833,11 +833,11 @@ if overrides.mem_profiling:
 # argument, thus a trailing backslash-newline would end up displaying
 # a single backslash.  So we need to chop off this final pair ourselves.
 # Unlike `str.removesuffix()`, which gets confused by the newline,
-# the odd-looking `str.strip()` does the right thing.
+# the odd-looking `str.rstrip()` does the right thing.
 if override_acks != '':
     st.caption(
         # pylint: disable-next=bad-str-strip-call
-        override_acks.strip(
+        override_acks.rstrip(
             '''\\
             '''
         )
