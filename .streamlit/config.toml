@@ -1,2 +1,8 @@
+[browser]
+gatherUsageStats = false
+
+[client]
+showErrorDetails = false
+
 [theme]
 primaryColor="#0F2CA4"
