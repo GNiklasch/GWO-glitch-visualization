@@ -1,3 +1,22 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) Gerhard Niklasch (2023)
+#
+# This file is part of GWO-glitch-visualization.
+#
+# GWO-glitch-visualization is free software: you can redistribute it
+# and/or modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, either version 3 of
+# the License, or (at your option) any later version.
+#
+# GWO-glitch-visualization is distributed in the hope that it will
+# be useful, but WITHOUT ANY WARRANTY; without even the implied
+# warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with GWpy.  If not, see <http://www.gnu.org/licenses/>.
+
 """A custom minor formatter for use in `matplotlib` figures where the x-axis
 displays frequencies between 8 Hz and just under 6000 Hz on a logarithmic
 scale.

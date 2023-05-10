@@ -23,7 +23,9 @@ Or use both web apps side by side if you like - each can do a few things that th
 Open Science Center ([GWOSC](https://gwosc.org/)),
 - web user interface created with [Streamlit](https://streamlit.io/).
 
-<!-- ## License (to be added) -->
+## License
+
+GWO glitch visualization is released under the GNU General Public License v3.0 or later, see [here](https://choosealicense.com/licenses/gpl-3.0/) for a description of this license, or see the [LICENSE](/LICENSE) file for the full text.
 
 ## Acknowledgements
 
