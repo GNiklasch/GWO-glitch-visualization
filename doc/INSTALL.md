@@ -56,13 +56,14 @@ After a few moments, `streamlit` will ask your browser to open the web user inte
 If you have several GiB of RAM to spare, try
 - `-C` to allow the application to **c**ache data from a larger number of different interferometer/timestamp combinations, and/or
 - `-W` to have it cache **w**ider intervals of data (a few minutes) from a given interferometer around a given timestamp. There's also
-- `-M` to monitor the **m**emory consumption. (This will produce quite a lot of somewhat technical terminal output to the terminal during each pass through the web app).
+- `-M` to monitor the **m**emory consumption. (This will produce quite a lot of somewhat technical terminal output to the terminal during each pass through the web app). As well as
+- `-s` to **s**ilence the smallprint about cookies and the cloud hosting provider which isn't relevant when you use the application locally.
 
 Options can be combined, and need to be separated from options to `streamlit` itself by a double hyphen. For example, I might use:
 ```
-streamlit run src/python/glitchplot.py -- -CMW
+streamlit run src/python/glitchplot.py -- -CMWs
 ```
-to apply all three of the above.
+to apply all four of the above.
 
 #### (3.2.2) Live code changes:
 
