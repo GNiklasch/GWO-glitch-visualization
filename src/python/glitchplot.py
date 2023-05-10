@@ -301,13 +301,13 @@ def emit_footer() -> None:
         scale='utc', format='isot'
     ).to_string()
     # pylint: disable=anomalous-backslash-in-string
-    footer = """
+    footer = '''
     View the source code on [GitHub]({0}).\\
     Inspired by [GW Quickview]({1}).\\
     Powered by [GWpy]({2}); fed with [data]({3}) hosted by the [GWOSC]({4}).\\
     Web user interface created with [Streamlit]({5}).\\
     \- Page refreshed {6} UTC.
-    """.format(
+    '''.format(
         'https://github.com/GNiklasch/GWO-glitch-visualization',
         'https://github.com/jkanner/streamlit-dataview/',
         'https://gwpy.github.io/',
@@ -343,7 +343,7 @@ st.set_page_config(
 # of excessive vertical padding while we're at it.
 # This must be emitted right at the start  (before emitting the title!)
 # in order to have the page look right immediately when it is visited.
-HIDE_ST_FOOTER = """
+HIDE_ST_FOOTER = '''
 <style>
 footer {visibility: hidden;}
 
@@ -356,7 +356,7 @@ footer {visibility: hidden;}
   padding-bottom: 1rem;
 }
 </style>
-"""
+'''
 st.markdown(HIDE_ST_FOOTER, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
@@ -548,7 +548,7 @@ with st.sidebar.form('load_what'):
             anonymized usage statistics.'''
         )
         st.session_state['silenced'] = st.checkbox(
-            r'\- got it',
+            r'\- Got it!',
             value=False
         )
 
@@ -873,12 +873,12 @@ if override_acks != '':
 
 if floor(t_end / CHUNK_SIZE) > floor(t_start / CHUNK_SIZE):
     state_adv = \
-        """Brew a pot of :tea: while we're fetching some {0} strain
-        data in {1} s chunks from GWOSC..."""
+        '''Brew a pot of :tea: while we're fetching some {0} strain
+        data in {1} s chunks from GWOSC...'''
 else:
     state_adv = \
-        """Grab a :coffee: while we're fetching a {1} s chunk of {0}
-        strain data from GWOSC..."""
+        '''Grab a :coffee: while we're fetching a {1} s chunk of {0}
+        strain data from GWOSC...'''
 state_msg = state_adv.format(interferometer, CHUNK_SIZE)
 load_strain_state = st.markdown(state_msg)
 
