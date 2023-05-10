@@ -317,6 +317,17 @@ def emit_footer() -> None:
         stamp
     )
     st.markdown(footer)
+    if not overrides.silence_notices:
+        cloud_notice = '''
+        This application neither expects, nor processes, nor stores any
+        personal data. The Streamlit Community Cloud hosting platform
+        on which it is deployed, like any responsible web service provider,
+        is aware of your IP address and logs accesses, and it collects some
+        anonymized usage statistics - view their [privacy policy]({0}).
+        '''.format(
+            'https://streamlit.io/privacy-policy'
+        )
+        st.caption(cloud_notice)
 
 # ---------------------------------------------------------------------------
 # -- Appearance:  Page layout...
