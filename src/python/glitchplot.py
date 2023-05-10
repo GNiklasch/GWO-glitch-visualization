@@ -70,6 +70,7 @@ parser.add_argument('-C', action='store_true', dest='large_caches')
 parser.add_argument('-M', action='store_true', dest='mem_profiling')
 parser.add_argument('-U', action='store_true', dest='url_caching')
 parser.add_argument('-W', action='store_true', dest='wide_cache_blocks')
+parser.add_argument('-s', action='store_true', dest='silence_notices')
 overrides = parser.parse_args()
 
 # (An alternative would have been to (ab)use .streamlit/secrets.toml to
@@ -524,6 +525,22 @@ st.sidebar.write(
 
 # ... data-loading form:
 with st.sidebar.form('load_what'):
+
+    if not overrides.silence_notices and \
+       'silenced' not in st.session_state:
+        st.caption(
+            '''This appplication uses essential cookies to ensure
+            consistent behavior from one button click to the next.
+            It won't remember you from one visit to the next, so this
+            notice will keep reappearing.
+            The cloud hosting platform also uses cookies to collect
+            anonymized usage statistics.'''
+        )
+        st.session_state['silenced'] = st.checkbox(
+            r'\- got it',
+            value=False
+        )
+
     st.markdown('### Load what from where:')
 
     interferometer = st.selectbox(
