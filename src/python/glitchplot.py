@@ -18,7 +18,9 @@
 # along with GWO-glitch-visualization.
 # If not, see <http://www.gnu.org/licenses/>.
 
-"""An interactive utility for plotting raw strain data from GWOSC,
+"""An interactive utility for visualizing public strain data from GWOSC.
+
+It is capable of plotting raw strain time series data,
 whitened and bandpass-filtered views of these time series data,
 spectra showing their amplitude spectral density during a time interval,
 spectrograms showing how the ASD evolves during this interval, and/or
