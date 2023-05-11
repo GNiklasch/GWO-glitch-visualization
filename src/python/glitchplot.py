@@ -99,6 +99,16 @@ overrides = parser.parse_args()
 # without creating a secrets.toml file, so this would not gain much.)
 
 # ---------------------------------------------------------------------------
+# -- Convenience class for holding attributes
+# ---------------------------------------------------------------------------
+
+class AttributeHolder:
+    """Instances of this class will serve as glorified dictionaries.
+    """
+    # pylint: disable-next=W0107
+    pass
+
+# ---------------------------------------------------------------------------
 # -- Custom exceptions --
 # ---------------------------------------------------------------------------
 
@@ -121,13 +131,16 @@ class DataGapError(ValueError):
 # -- Input selectables and related parameters, up front --
 # ---------------------------------------------------------------------------
 
-LOW_RATE, HIGH_RATE = (4096, 16384)
+app_conf = AttributeHolder()
+
+app_conf.LOW_RATE, app_conf.HIGH_RATE = (4096, 16384)
 
 # ---------------------------------------------------------------------------
 # -- Helper methods: cacheable data...
 # ---------------------------------------------------------------------------
 
-def _load_strain_impl(interferometer, t_start, t_end, sample_rate=LOW_RATE):
+def _load_strain_impl(interferometer, t_start, t_end,
+                      sample_rate=app_conf.LOW_RATE):
     """Workhorse wrapper around TimeSeries.fetch_open_data()"""
     # pylint: disable=redefined-outer-name
     # Work around bug #1612 in GWpy:  fetch_open_data() would fail if t_end
@@ -160,7 +173,7 @@ def _load_strain_impl(interferometer, t_start, t_end, sample_rate=LOW_RATE):
 # cache blocks  (typically 512 s at the low sample rate)  when requested.
 @st.cache_data(max_entries=16 if overrides.large_caches else 8)
 def load_low_rate_strain(interferometer, t_start, t_end,
-                         sample_rate=LOW_RATE):
+                         sample_rate=app_conf.LOW_RATE):
     """Cacheable wrapper around low-sample-rate data fetching"""
     # pylint: disable=redefined-outer-name
     return _load_strain_impl(interferometer, t_start, t_end,
@@ -168,7 +181,7 @@ def load_low_rate_strain(interferometer, t_start, t_end,
 
 @st.cache_data(max_entries=8 if overrides.large_caches else 3)
 def load_high_rate_strain(interferometer, t_start, t_end,
-                          sample_rate=HIGH_RATE):
+                          sample_rate=app_conf.HIGH_RATE):
     """Cacheable wrapper around high-sample-rate data fetching"""
     # pylint: disable=redefined-outer-name
     return _load_strain_impl(interferometer, t_start, t_end,
@@ -202,7 +215,7 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
     # created during plotting  (on the order of 380 MiB for a single
     # Q-transform plot at high sample rate!).
     fres = ceil(max(600, 24 * q_val) *
-                (1 if sample_rate < HIGH_RATE else 1.3))
+                (1 if sample_rate < app_conf.HIGH_RATE else 1.3))
     q_warning = 0
     try:
         # The q_transform output would be distorted when the available strain
@@ -439,12 +452,12 @@ st.title('Plot glitches from GWOSC-sourced strain data')
 # ---------------------------------------------------------------------------
 
 # Strictly speaking the following is valid for O3 only...
-calib_freqs_low = {'H1': 10, 'L1': 10, 'V1': 20}
-interferometers = list(calib_freqs_low)
+app_conf.calib_freqs_low = {'H1': 10, 'L1': 10, 'V1': 20}
+app_conf.interferometers = list(app_conf.calib_freqs_low)
 
 # The L1 view of GW170817, with the almighty ETMY saturation / ESD overflow
 # glitch a second earlier, is well known as the Gravity Spy logo.
-INITIAL_T0_GPS = '1187008882.4'
+app_conf.INITIAL_T0_GPS = '1187008882.4'
 
 # Loading time is dominated by having to wade through either one or two
 # files of 4096 seconds of strain data.  Asking for a generously sized
@@ -464,17 +477,17 @@ INITIAL_T0_GPS = '1187008882.4'
 # Also, we'll be able to extract a "background" spectrum from 64s worth of
 # data cropped at time offsets up to ±12 seconds  (useless as this is when
 # the half width is larger than the offset)  without falling off the ends.
-T_ELBOW_ROOM = 46.7
+app_conf.T_ELBOW_ROOM = 46.7
 
 # Filtering will have to get by with less padding beyond the half width:
-T_PAD = 8.0
+app_conf.T_PAD = 8.0
 
-T_WIDTHS = (0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8, 16, 32, 64)
-INITIAL_WIDTH = T_WIDTHS[5]
+app_conf.T_WIDTHS = (0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8, 16, 32, 64)
+app_conf.INITIAL_WIDTH = app_conf.T_WIDTHS[5]
 
-SAMPLE_RATES = (LOW_RATE, HIGH_RATE)
+app_conf.SAMPLE_RATES = (app_conf.LOW_RATE, app_conf.HIGH_RATE)
 
-CHUNK_SIZE = 4096 # only used for informative messages
+app_conf.CHUNK_SIZE = 4096 # only used for informative messages
 
 # It might be nice to have a red "Don't...." and green "Do...", but Streamlit
 # selectbox options do not support markdown/colors.  Moreover, selecting any
@@ -483,8 +496,8 @@ CHUNK_SIZE = 4096 # only used for informative messages
 # is not practical.
 # (Radio button options don't support markdown either;  and radio buttons
 # would take up too much space, as well as breaking the flow of the sentence.)
-YORN = {"Don't...": False, 'Do...': True}
-YORN_CHOICES = list(YORN)
+app_conf.YORN = {"Don't...": False, 'Do...': True}
+app_conf.YORN_CHOICES = list(app_conf.YORN)
 
 # Usable frequencies for filtering depend on the sample rate.
 # Thus the following will be sliced down to size as appropriate - we need
@@ -496,7 +509,7 @@ YORN_CHOICES = list(YORN)
 # Data below calib_freqs_low[interferometer] are also unreliable.
 # (H1 in particular switched to much more aggressive VLF highpass filtering
 # during O3b on 2020-01-14.)
-F_DETENTS = (
+app_conf.F_DETENTS = (
     8, 9.51, 11.3, 13.5, 16, 19.0, 22.6, 26.9,
     32, 38.3, 45.3, 53.8, 64, 76.1, 90.5, 108,
     128, 152, 181, 215, 256, 304, 362, 431,
@@ -505,38 +518,46 @@ F_DETENTS = (
 )
 
 # ASD spectra and spectrograms share some of their input choices.
-ASD_Y_DECADES = {
+app_conf.ASD_Y_DECADES = {
     -27: 1.E-27, -26: 1.E-26, -25: 1.E-25, -24: 1.E-24,
     -23: 1.E-23, -22: 1.E-22, -21: 1.E-21, -20: 1.E-20,
     -19: 1.E-19, -18: 1.E-18, -17: 1.E-17, -16: 1.E-16
 }
-ASD_Y_DETENTS = list(ASD_Y_DECADES)
-ASD_OFFSETS = {
+app_conf.ASD_Y_DETENTS = list(app_conf.ASD_Y_DECADES)
+app_conf.ASD_OFFSETS = {
     '-12': -12, '-6': -6, '-3': -3, '-1.5': -1.5,
     'None': 0,
     '1.5': 1.5, '3': 3, '6': 6, '12': 12
 }
-ASD_OFFSET_DETENTS = list(ASD_OFFSETS)
-ASD_INITIAL_OFFSET = ASD_OFFSET_DETENTS[4] # 'None'
-ASD_INITIAL_Y = (ASD_Y_DETENTS[1], ASD_Y_DETENTS[-4])
-SPEC_INITIAL_V = (ASD_Y_DETENTS[1], ASD_Y_DETENTS[-4])
+app_conf.ASD_OFFSET_DETENTS = list(app_conf.ASD_OFFSETS)
+app_conf.ASD_INITIAL_OFFSET = app_conf.ASD_OFFSET_DETENTS[4] # 'None'
+app_conf.ASD_INITIAL_Y = (
+    app_conf.ASD_Y_DETENTS[1],
+    app_conf.ASD_Y_DETENTS[-4]
+)
+app_conf.SPEC_INITIAL_V = (
+    app_conf.ASD_Y_DETENTS[1],
+    app_conf.ASD_Y_DETENTS[-4]
+)
 
 # Spectrograms will have 8 Hz resolution except for very short widths where
 # the stride will have to be adjusted down.  4 Hz (0.25 s stride) is too fine;
 # the LIGO fundamental violin modes would then get lost under the horizontal
 # grid lines.
-BASIC_SPEC_STRIDE = 0.125
+app_conf.BASIC_SPEC_STRIDE = 0.125
 
 # View limit frequencies for spectrograms:
-SPEC_F_DETENTS = (10, 22.6, 45.3, 90.5, 181, 362, 724, 1448, 2896, 5793)
+app_conf.SPEC_F_DETENTS = (
+    10, 22.6, 45.3, 90.5, 181, 362, 724, 1448, 2896, 5793
+)
 
 # Q-values spaced at powers of sqrt(2):
-Q_VALUES = (5.66, 8, 11.3, 16, 22.6, 32, 45.3, 64)
-INITIAL_Q = Q_VALUES[2]
+app_conf.Q_VALUES = (5.66, 8, 11.3, 16, 22.6, 32, 45.3, 64)
+app_conf.INITIAL_Q = app_conf.Q_VALUES[2]
 
 # Colormap scaling for const-Q transforms:
-NORMALIZED_ENERGIES = (6.3, 12.7, 25.5, 51.1, 102.3)
-INITIAL_NE_CUTOFF = NORMALIZED_ENERGIES[2]
+app_conf.NORMALIZED_ENERGIES = (6.3, 12.7, 25.5, 51.1, 102.3)
+app_conf.INITIAL_NE_CUTOFF = app_conf.NORMALIZED_ENERGIES[2]
 
 # Start memory profiling if requested:
 if overrides.mem_profiling:
@@ -575,17 +596,17 @@ with st.sidebar.form('load_what'):
 
     interferometer = st.selectbox(
         '**From interferometer:**',
-        interferometers,
+        app_conf.interferometers,
         index=1 # default L1
     )
     t_width = st.select_slider(
         '**load enough to visualize**',
-        T_WIDTHS, value=INITIAL_WIDTH
+        app_conf.T_WIDTHS, value=app_conf.INITIAL_WIDTH
     )
     t0_text = st.text_input(
         '''**seconds of strain data around GPS
         (or ISO 8601-formatted UTC) timestamp:**''',
-        INITIAL_T0_GPS
+        app_conf.INITIAL_T0_GPS
     )
     cache_wide_blocks = False
     if overrides.wide_cache_blocks:
@@ -595,7 +616,7 @@ with st.sidebar.form('load_what'):
         )
     sample_rate = st.selectbox(
         '**Sample rate:**',
-        SAMPLE_RATES
+        app_conf.SAMPLE_RATES
     )
 
     load_submitted = st.form_submit_button(
@@ -605,17 +626,17 @@ with st.sidebar.form('load_what'):
     )
 
 # Preprocess parameters which depend on the sample rate and/or interferometer:
-if sample_rate < HIGH_RATE:
-    f_detents_eff = F_DETENTS[0:30]
-    asd_f_detents_eff = F_DETENTS[0:31]
-    spec_f_detents_eff = SPEC_F_DETENTS[0:8]
+if sample_rate < app_conf.HIGH_RATE:
+    f_detents_eff = app_conf.F_DETENTS[0:30]
+    asd_f_detents_eff = app_conf.F_DETENTS[0:31]
+    spec_f_detents_eff = app_conf.SPEC_F_DETENTS[0:8]
     spec_figsize = (12, 6)
     qtsf_figsize = (12, 7)
     load_strain = load_low_rate_strain
 else:
-    f_detents_eff = F_DETENTS[0:38]
-    asd_f_detents_eff = F_DETENTS
-    spec_f_detents_eff = SPEC_F_DETENTS
+    f_detents_eff = app_conf.F_DETENTS[0:38]
+    asd_f_detents_eff = app_conf.F_DETENTS
+    spec_f_detents_eff = app_conf.SPEC_F_DETENTS
     spec_figsize = (12, 7)
     qtsf_figsize = (12, 8)
     load_strain = load_high_rate_strain
@@ -624,7 +645,7 @@ f_initial_range = (f_detents_eff[1], f_detents_eff[28])
 asd_initial_f_range = (asd_f_detents_eff[1], asd_f_detents_eff[-1])
 spec_initial_f_range = (spec_f_detents_eff[0], spec_f_detents_eff[-1])
 
-calib_freq_low = calib_freqs_low[interferometer]
+calib_freq_low = app_conf.calib_freqs_low[interferometer]
 calib_caveat = f'Caution: Strain data below {calib_freq_low} Hz from' + \
     f" {interferometer} aren't calibrated."
 
@@ -639,10 +660,10 @@ with st.sidebar.form('plot_how'):
     # Default here is "Don't".
     do_plot_txt = st.selectbox(
         'Shall we plot?',
-        YORN_CHOICES,
+        app_conf.YORN_CHOICES,
         label_visibility = 'collapsed'
     )
-    do_plot = YORN[do_plot_txt]
+    do_plot = app_conf.YORN[do_plot_txt]
 
     st.markdown('### ...filter and plot filtered data:')
 
@@ -670,10 +691,10 @@ with st.sidebar.form('plot_how'):
 with st.sidebar.form('asd_how'):
     do_show_asd_txt = st.selectbox(
         'Shall we show ASD?',
-        YORN_CHOICES, # Default is "Don't".
+        app_conf.YORN_CHOICES, # Default is "Don't".
         label_visibility = 'collapsed'
     )
-    do_show_asd = YORN[do_show_asd_txt]
+    do_show_asd = app_conf.YORN[do_show_asd_txt]
 
     st.markdown('### ...show amplitude spectral density as a spectrum:')
 
@@ -684,17 +705,20 @@ with st.sidebar.form('asd_how'):
     )
     asd_y_low, asd_y_high = st.select_slider(
         '**Spectrum ASD range, decades:**',
-        ASD_Y_DETENTS,
-        value=ASD_INITIAL_Y
+        app_conf.ASD_Y_DETENTS,
+        value=app_conf.ASD_INITIAL_Y
     )
-    asd_y_range = (ASD_Y_DECADES[asd_y_low], ASD_Y_DECADES[asd_y_high])
+    asd_y_range = (
+        app_conf.ASD_Y_DECADES[asd_y_low],
+        app_conf.ASD_Y_DECADES[asd_y_high]
+    )
     asd_offset_choice = st.select_slider(
         '''**Optional background ASD spectrum,
         from [s] earlier or later:**''',
-        ASD_OFFSET_DETENTS,
-        value=ASD_INITIAL_OFFSET
+        app_conf.ASD_OFFSET_DETENTS,
+        value=app_conf.ASD_INITIAL_OFFSET
     )
-    asd_offset = ASD_OFFSETS[asd_offset_choice]
+    asd_offset = app_conf.ASD_OFFSETS[asd_offset_choice]
     # Just in case someone wants to extract a light-shaded plot:
     asd_lighten = st.checkbox(
         r'\- swap shades: light foreground (and heavy background)'
@@ -710,10 +734,10 @@ with st.sidebar.form('asd_how'):
 with st.sidebar.form('spec_how'):
     do_spec_txt = st.selectbox(
         'Shall we spec?',
-        YORN_CHOICES, # Default here is "Don't".
+        app_conf.YORN_CHOICES, # Default here is "Don't".
         label_visibility = 'collapsed'
     )
-    do_spec = YORN[do_spec_txt]
+    do_spec = app_conf.YORN[do_spec_txt]
 
     st.markdown('### ...show a spectrogram:')
     spec_f_range = st.select_slider(
@@ -723,12 +747,12 @@ with st.sidebar.form('spec_how'):
     )
     spec_v_low, spec_v_high = st.select_slider(
         '**Spectrogram ASD range, decades:**',
-        ASD_Y_DETENTS,
-        value=SPEC_INITIAL_V
+        app_conf.ASD_Y_DETENTS,
+        value=app_conf.SPEC_INITIAL_V
     )
     spec_v_min, spec_v_max = (
-        ASD_Y_DECADES[spec_v_low],
-        ASD_Y_DECADES[spec_v_high]
+        app_conf.ASD_Y_DECADES[spec_v_low],
+        app_conf.ASD_Y_DECADES[spec_v_high]
     )
     spec_grid_enabled = st.checkbox(
         r'\- enable grid overlay',
@@ -760,23 +784,23 @@ with st.sidebar.form('spec_how'):
 with st.sidebar.form('qtsf_how'):
     do_qtsf_txt = st.selectbox(
         'Shall we qtsf?',
-        YORN_CHOICES,
+        app_conf.YORN_CHOICES,
         label_visibility = 'collapsed',
         index=1 # Default here is 'Do'.
     )
-    do_qtsf = YORN[do_qtsf_txt]
+    do_qtsf = app_conf.YORN[do_qtsf_txt]
 
     st.markdown('### ...render a constant-Q transform:')
 
     q0 = st.select_slider(
         '**Q-value:**',
-        Q_VALUES,
-        value=INITIAL_Q
+        app_conf.Q_VALUES,
+        value=app_conf.INITIAL_Q
     )
     ne_cutoff = st.select_slider(
         '**Normalized energy cutoff:**',
-        NORMALIZED_ENERGIES,
-        value=INITIAL_NE_CUTOFF
+        app_conf.NORMALIZED_ENERGIES,
+        value=app_conf.INITIAL_NE_CUTOFF
     )
     whiten_qtsf = st.checkbox(
         r'\- whiten before transforming',
@@ -820,15 +844,15 @@ except ValueError as ex:
 t0_iso=gps_to_isot(t0)
 
 t_cache_boundaries = (
-    (512 if sample_rate < HIGH_RATE else 256) \
+    (512 if sample_rate < app_conf.HIGH_RATE else 256) \
     if cache_wide_blocks else 32
 )
 
 t_halfwidth = t_width / 2
 t_start = t_cache_boundaries * \
-    floor((t0 - T_ELBOW_ROOM)/t_cache_boundaries)
+    floor((t0 - app_conf.T_ELBOW_ROOM)/t_cache_boundaries)
 t_end = t_cache_boundaries * \
-    ceil((t0 + T_ELBOW_ROOM)/t_cache_boundaries)
+    ceil((t0 + app_conf.T_ELBOW_ROOM)/t_cache_boundaries)
 t_plotstart = t0 - t_halfwidth
 t_plotend = t0 + t_halfwidth
 
@@ -890,7 +914,7 @@ if override_acks != '':
         )
     )
 
-if floor(t_end / CHUNK_SIZE) > floor(t_start / CHUNK_SIZE):
+if floor(t_end / app_conf.CHUNK_SIZE) > floor(t_start / app_conf.CHUNK_SIZE):
     state_adv = \
         '''Brew a pot of :tea: while we're fetching some {0} strain
         data in {1} s chunks from GWOSC...'''
@@ -898,7 +922,7 @@ else:
     state_adv = \
         '''Grab a :coffee: while we're fetching a {1} s chunk of {0}
         strain data from GWOSC...'''
-state_msg = state_adv.format(interferometer, CHUNK_SIZE)
+state_msg = state_adv.format(interferometer, app_conf.CHUNK_SIZE)
 load_strain_state = st.markdown(state_msg)
 
 try:
@@ -924,8 +948,8 @@ load_strain_state.markdown(loaded_msg)
 st.write('Cache block start:', t_start, ', end:', t_end,
          '; plot start:', t_plotstart, ', end:', t_plotend)
 strain_precropped = strain.crop(
-    t_plotstart - T_PAD,
-    t_plotend + T_PAD
+    t_plotstart - app_conf.T_PAD,
+    t_plotend + app_conf.T_PAD
 )
 
 # One extra sample ensures that the rightmost major tick will be drawn when
@@ -1217,7 +1241,7 @@ if do_spec:
     st.subheader('Spectrogram')
 
     spec_title = f'{interferometer}, around {t0} GPS ({t0_iso} UTC)'
-    spec_stride = min(t_width / 8, BASIC_SPEC_STRIDE)
+    spec_stride = min(t_width / 8, app_conf.BASIC_SPEC_STRIDE)
     spec_overlap = spec_stride / 4
     specgram = make_specgram(
         strain_cropped,
@@ -1278,7 +1302,7 @@ if do_qtsf:
             strain, interferometer,
             t_start, t_end,
             sample_rate,
-            t_plotstart, t_plotend, T_PAD,
+            t_plotstart, t_plotend, app_conf.T_PAD,
             q_val=q0,
             whiten=whiten_qtsf
         )
