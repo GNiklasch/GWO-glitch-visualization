@@ -64,6 +64,7 @@ from matplotlib.ticker import LogFormatter, NullFormatter, \
     AutoMinorLocator, MultipleLocator, NullLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+from gwogv_util.collections import AttributeHolder
 from gwogv_util.exception import DataGapError, ZeroFrequencyRangeError
 from gwogv_util.time import gps_to_isot, iso_to_gps, any_to_gps, now_as_isot
 from gwogv_util.plotutil.ticker import MyFormatter
@@ -99,16 +100,6 @@ overrides = parser.parse_args()
 # on the fly without a GitHub commit and redeployment.  But we'd still
 # need *some* usable defaults here to enable people to run the code locally
 # without creating a secrets.toml file, so this would not gain much.)
-
-# ---------------------------------------------------------------------------
-# -- Convenience class for holding attributes
-# ---------------------------------------------------------------------------
-
-class AttributeHolder:
-    """Instances of this class will serve as glorified dictionaries.
-    """
-    # pylint: disable-next=W0107
-    pass
 
 # ---------------------------------------------------------------------------
 # -- Input selectables and related parameters, up front --
@@ -332,8 +323,10 @@ st.markdown(HIDE_ST_FOOTER, unsafe_allow_html=True)
 # ...colors and colormaps...
 # ---------------------------------------------------------------------------
 
-PRIMARY_COLOR = st.get_option("theme.primaryColor") # '#0F2CA4'
-VLINE_COLOR = 'orange'
+appearance = AttributeHolder()
+
+appearance.PRIMARY_COLOR = st.get_option("theme.primaryColor") # '#0F2CA4'
+appearance.VLINE_COLOR = 'orange'
 
 # Both of the following are derived from PRIMARY_COLOR and will produce
 # very nearly the same shade when plotted on a white background.  The
@@ -343,10 +336,11 @@ VLINE_COLOR = 'orange'
 # (If one wants the background curve to be faintly visible "through" the
 # foreground one, the transparent color shade could be made slightly lighter
 # and slightly more opaque, interpolating between the current two specs.)
-ASD_LIGHT_COLOR = '#7A89C8'
-ASD_TRANSPARENT_COLOR = PRIMARY_COLOR + '96' # '#0F2CA496'
+appearance.ASD_LIGHT_COLOR = '#7A89C8'
+appearance.ASD_TRANSPARENT_COLOR = \
+    appearance.PRIMARY_COLOR + '96' # '#0F2CA496'
 
-COLORMAPS = {
+appearance.COLORMAPS = {
     'Viridis (Gravity Spy)': 'viridis',
     'Viridis reversed': 'viridis_r',
     'Reds': 'Reds',
@@ -362,21 +356,21 @@ COLORMAPS = {
     'Jetstream': 'jetstream',
     'Jetstream reversed': 'jetstream_r'
 }
-COLORMAP_CHOICES = list(COLORMAPS)
+appearance.COLORMAP_CHOICES = list(appearance.COLORMAPS)
 
 # ---------------------------------------------------------------------------
 # ...figure and font sizes...
 # ---------------------------------------------------------------------------
 
-ASD_FIGSIZE = (10, 8)
+appearance.ASD_FIGSIZE = (10, 8)
 
-RAW_TITLE_FONTSIZE = 14
-FILTERED_TITLE_FONTSIZE = 14
-ASD_TITLE_FONTSIZE = 14
-ASD_LABEL_FONTSIZE = 13
-ASD_LABEL_LABELSIZE = 11
-SPEC_TITLE_FONTSIZE = 17
-QTSF_TITLE_FONTSIZE = 17
+appearance.RAW_TITLE_FONTSIZE = 14
+appearance.FILTERED_TITLE_FONTSIZE = 14
+appearance.ASD_TITLE_FONTSIZE = 14
+appearance.ASD_LABEL_FONTSIZE = 13
+appearance.ASD_LABEL_LABELSIZE = 11
+appearance.SPEC_TITLE_FONTSIZE = 17
+appearance.QTSF_TITLE_FONTSIZE = 17
 
 # ---------------------------------------------------------------------------
 # ...and the (in-page) title:
@@ -706,10 +700,10 @@ with st.sidebar.form('spec_how'):
     # the end of the selectbox options...
     spec_colormap_choice = st.selectbox(
         '**Spectrogram colormap:**',
-        COLORMAP_CHOICES,
-        index=len(COLORMAP_CHOICES)-2
+        appearance.COLORMAP_CHOICES,
+        index=len(appearance.COLORMAP_CHOICES)-2
     )
-    spec_colormap = COLORMAPS[spec_colormap_choice]
+    spec_colormap = appearance.COLORMAPS[spec_colormap_choice]
 
     spec_submitted = st.form_submit_button(
         'Apply spectrogram settings',
@@ -753,10 +747,10 @@ with st.sidebar.form('qtsf_how'):
     )
     qtsf_colormap_choice = st.selectbox(
         '**Q transform colormap:**',
-        COLORMAP_CHOICES,
+        appearance.COLORMAP_CHOICES,
         index=0 # Default is Viridis  (same as Gravity Spy's)
     )
-    qtsf_colormap = COLORMAPS[qtsf_colormap_choice]
+    qtsf_colormap = appearance.COLORMAPS[qtsf_colormap_choice]
 
     qtsf_submitted = st.form_submit_button(
         'Apply Q transform settings',
@@ -932,13 +926,14 @@ try:
         raise DataGapError()
 
     with _lock:
-        figure_raw = strain_cropped.plot(color=PRIMARY_COLOR)
+        figure_raw = strain_cropped.plot(color=appearance.PRIMARY_COLOR)
 
         raw_title = f'{interferometer}, around {t0} ({t0_iso} UTC), raw'
         ax = figure_raw.gca()
         ax.set_title(
             raw_title,
-            loc='right', fontsize=RAW_TITLE_FONTSIZE
+            loc='right',
+            fontsize=appearance.RAW_TITLE_FONTSIZE
         )
         ax.set_xscale('seconds', epoch=t_epoch)
         if t_width >= 1.0:
@@ -947,7 +942,7 @@ try:
             ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
         ax.set_ylabel('dimensionless')
         if filtered_vline_enabled:
-            ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
+            ax.axvline(t0, color=appearance.VLINE_COLOR, linestyle='--')
         st.pyplot(figure_raw, clear_figure=True)
 
 except DataGapError:
@@ -962,7 +957,7 @@ except DataGapError:
         ax = figure_flag.gca()
         ax.set_title(
             'Available / unavailable data vs. requested interval:',
-            fontsize=RAW_TITLE_FONTSIZE
+            fontsize=appearance.RAW_TITLE_FONTSIZE
         )
         ax.set_xscale('seconds', epoch=floor(t0))
         if t_end - t_start == 128:
@@ -975,9 +970,17 @@ except DataGapError:
         ax.yaxis.set_major_formatter(NullFormatter())
         ax.yaxis.set_major_locator(NullLocator())
         # Always highlight t0 in *this* diagram:
-        ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
-        ax.axvline(t_plotstart, color=PRIMARY_COLOR, linestyle='-.')
-        ax.axvline(t_plotend, color=PRIMARY_COLOR, linestyle='-.')
+        ax.axvline(t0, color=appearance.VLINE_COLOR, linestyle='--')
+        ax.axvline(
+            t_plotstart,
+            color=appearance.PRIMARY_COLOR,
+            linestyle='-.'
+        )
+        ax.axvline(
+            t_plotend,
+            color=appearance.PRIMARY_COLOR,
+            linestyle='-.'
+        )
         st.pyplot(figure_flag, clear_figure=True)
 
     emit_footer()
@@ -1027,12 +1030,13 @@ if do_plot:
 
         with _lock:
             figure_filtered = filtered_cropped.plot(
-                color=PRIMARY_COLOR
+                color=appearance.PRIMARY_COLOR
             )
             ax = figure_filtered.gca()
             ax.set_title(
                 filtered_title,
-                loc='right', fontsize=FILTERED_TITLE_FONTSIZE
+                loc='right',
+                fontsize=appearance.FILTERED_TITLE_FONTSIZE
             )
             if whiten_plot:
                 ax.set_ylabel('arbitrary units')
@@ -1044,7 +1048,7 @@ if do_plot:
             if t_width <= 4.0:
                 ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
             if filtered_vline_enabled:
-                ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
+                ax.axvline(t0, color=appearance.VLINE_COLOR, linestyle='--')
             st.pyplot(figure_filtered, clear_figure=True)
 
         if f_range[0] < calib_freq_low:
@@ -1109,9 +1113,9 @@ if do_show_asd:
 
         with _lock:
             figure_asd = strain_asd.plot(
-                figsize=ASD_FIGSIZE,
-                color=ASD_LIGHT_COLOR if asd_lighten \
-                else PRIMARY_COLOR
+                figsize=appearance.ASD_FIGSIZE,
+                color=appearance.ASD_LIGHT_COLOR if asd_lighten \
+                else appearance.PRIMARY_COLOR
             )
             ax = figure_asd.gca()
             # Now that we have the axes configured, plotting a non-existent
@@ -1121,17 +1125,17 @@ if do_show_asd:
                 ax.plot(
                     strain_bgnd_asd,
                     label=asd_bgnd_label,
-                    color=PRIMARY_COLOR if asd_lighten \
-                    else ASD_TRANSPARENT_COLOR
+                    color=appearance.PRIMARY_COLOR if asd_lighten \
+                    else appearance.ASD_TRANSPARENT_COLOR
                 )
                 # We'll let matplotlib pick the best corner for the legend.
                 # GWpy's custom handler_map creates an example line segment
                 # that's rather thick, but with handler_map=None to reinstate
                 # matplotlib's defaults it would be too thin.
-                ax.legend(fontsize=ASD_TITLE_FONTSIZE)
+                ax.legend(fontsize=appearance.ASD_TITLE_FONTSIZE)
             ax.set_title(
                 asd_title,
-                fontsize=ASD_TITLE_FONTSIZE,
+                fontsize=appearance.ASD_TITLE_FONTSIZE,
                 loc='right', pad=10.
             )
             ax.xaxis.set_major_formatter(LogFormatter(base=10))
@@ -1139,14 +1143,14 @@ if do_show_asd:
             ax.yaxis.set_minor_formatter(NullFormatter())
             ax.set_xlim(asd_f_range)
             ax.set_ylim(asd_y_range)
-            ax.set_ylabel(asd_ylabel, fontsize=ASD_LABEL_FONTSIZE)
-            ax.set_xlabel(asd_xlabel, fontsize=ASD_LABEL_FONTSIZE)
+            ax.set_ylabel(asd_ylabel, fontsize=appearance.ASD_LABEL_FONTSIZE)
+            ax.set_xlabel(asd_xlabel, fontsize=appearance.ASD_LABEL_FONTSIZE)
             ax.xaxis.set_tick_params(which='major',
-                                     labelsize=ASD_LABEL_FONTSIZE)
+                                     labelsize=appearance.ASD_LABEL_FONTSIZE)
             ax.xaxis.set_tick_params(which='minor',
-                                     labelsize=ASD_LABEL_LABELSIZE)
+                                     labelsize=appearance.ASD_LABEL_LABELSIZE)
             ax.yaxis.set_tick_params(which='major',
-                                     labelsize=ASD_LABEL_LABELSIZE)
+                                     labelsize=appearance.ASD_LABEL_LABELSIZE)
             st.pyplot(figure_asd, clear_figure=True)
 
         if asd_f_range[0] < calib_freq_low:
@@ -1208,7 +1212,7 @@ if do_spec:
             vmin=spec_v_min, vmax=spec_v_max,
             norm='log'
         )
-        ax.set_title(spec_title, fontsize=SPEC_TITLE_FONTSIZE)
+        ax.set_title(spec_title, fontsize=appearance.SPEC_TITLE_FONTSIZE)
         cax.yaxis.set_minor_formatter(NullFormatter())
         ax.grid(spec_grid_enabled)
         cax.grid(spec_grid_enabled)
@@ -1220,7 +1224,7 @@ if do_spec:
         ax.set_yscale('log', base=2)
         ax.set_ylim(spec_f_range)
         if spec_vline_enabled:
-            ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
+            ax.axvline(t0, color=appearance.VLINE_COLOR, linestyle='--')
         st.pyplot(figure_spec, clear_figure=True)
 else:
     st.write('(Skipping spectrogram.)')
@@ -1272,7 +1276,7 @@ if do_qtsf:
                 cax=cax, cmap=qtsf_colormap,
                 clim=(0, ne_cutoff)
             )
-            ax.set_title(qtsf_title, fontsize=QTSF_TITLE_FONTSIZE)
+            ax.set_title(qtsf_title, fontsize=appearance.QTSF_TITLE_FONTSIZE)
             ax.title.set_position([.5, 1.05])
             ax.grid(qtsf_grid_enabled)
             cax.grid(qtsf_grid_enabled)
@@ -1284,7 +1288,7 @@ if do_qtsf:
             ax.set_yscale('log', base=2)
             ax.set_ylim(bottom=10)
             if qtsf_vline_enabled:
-                ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
+                ax.axvline(t0, color=appearance.VLINE_COLOR, linestyle='--')
             st.pyplot(figure_qgram, clear_figure=True)
 
         if q_warning > 0:
