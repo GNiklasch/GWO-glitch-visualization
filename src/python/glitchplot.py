@@ -56,20 +56,19 @@ import tracemalloc
 import streamlit as st
 import numpy as np
 from gwpy.timeseries import TimeSeries, StateTimeSeries
-import astropy.time as atime
 import matplotlib as mpl
 from matplotlib.backends.backend_agg import RendererAgg
 from matplotlib.ticker import LogFormatter, NullFormatter, \
     AutoMinorLocator, MultipleLocator, NullLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-# customizations
-from plotutil.ticker import MyFormatter
+from gwogv_util.time import gps_to_isot, iso_to_gps, any_to_gps, now_as_isot
+from gwogv_util.plotutil.ticker import MyFormatter
 
 # Importing customcm is required since it registers our custom colormap
 # and its reversed form with matplotlib.
 # pylint: disable-next=unused-import
-import plotutil.customcm
+import gwogv_util.plotutil.customcm
 
 # Thread-safe plotting:
 # The backend choice here is redundant - Streamlit already does this.
@@ -267,48 +266,6 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
     return (q_gram, q_warning)
 
 # ---------------------------------------------------------------------------
-# ...timestamp conversion...
-# ---------------------------------------------------------------------------
-
-# Unlike `datetime`, `astropy` treats leap seconds correctly.
-
-def gps_to_isot(val):
-    """Convert a GPS timestamp to a UTC date/time in ISO 8601 format with
-    a literal 'T' separating date and time."""
-    # pylint: disable-next=redefined-builtin
-    return atime.Time(
-        val=atime.Time(val=val, scale='tai', format='gps'),
-        scale='utc', format='isot'
-    ).to_string()
-
-# pylint: disable-next=redefined-builtin
-def iso_to_gps(val, format='isot'):
-    """Convert a UTC date/time in ISO 8601 format with a literal 'T'
-    separating date and time to a GPS timestamp."""
-    # pylint: disable-next=redefined-builtin
-    return atime.Time(
-        val=atime.Time(val=val, scale='utc', format=format),
-        scale='tai', format='gps'
-    ).to_value('gps')
-
-def any_to_gps(val):
-    """Convert the user intput to a GPS timestamp, accepting either
-    UTC formatted as ISO 8601 date/time with 'T' or space separating
-    time and date, optionally with a trailing 'Z', or text that can be
-    parsed as a floating point number representing a GPS timestamp."""
-    try:
-        t_gps = iso_to_gps(val=val)
-    # pylint: disable-next=broad-exception-caught
-    except Exception:
-        try:
-            # pylint: disable-next=redefined-builtin
-            t_gps = iso_to_gps(val=val, format='iso')
-        # pylint: disable-next=broad-exception-caught
-        except Exception:
-            t_gps = float(val)
-    return t_gps
-
-# ---------------------------------------------------------------------------
 # ...memory profiling...
 # ---------------------------------------------------------------------------
 
@@ -328,10 +285,6 @@ def print_mem_profile(tops = 8) -> None:
 def emit_footer() -> None:
     """Emit the page footer."""
     st.divider()
-    stamp = atime.Time(
-        atime.Time.now(),
-        scale='utc', format='isot'
-    ).to_string()
     # pylint: disable=anomalous-backslash-in-string
     footer = '''
     View the source code on [GitHub]({0}).\\
@@ -346,7 +299,7 @@ def emit_footer() -> None:
         'https://gwosc.org/data/',
         'https://gwosc.org/',
         'https://streamlit.io/',
-        stamp
+        now_as_isot()
     )
     st.markdown(footer)
     if not overrides.silence_notices:
