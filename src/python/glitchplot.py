@@ -64,6 +64,7 @@ from matplotlib.ticker import LogFormatter, NullFormatter, \
     AutoMinorLocator, MultipleLocator, NullLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+from gwogv_util.exception import DataGapError, ZeroFrequencyRangeError
 from gwogv_util.time import gps_to_isot, iso_to_gps, any_to_gps, now_as_isot
 from gwogv_util.plotutil.ticker import MyFormatter
 
@@ -105,25 +106,6 @@ overrides = parser.parse_args()
 
 class AttributeHolder:
     """Instances of this class will serve as glorified dictionaries.
-    """
-    # pylint: disable-next=W0107
-    pass
-
-# ---------------------------------------------------------------------------
-# -- Custom exceptions --
-# ---------------------------------------------------------------------------
-
-class ZeroFrequencyRangeError(ZeroDivisionError):
-    """Runtime exception raised upon detecting a frequency range
-    whose lower and upper limits coincide, which is unsuitable for
-    constructing a band pass filter.
-    """
-    # pylint: disable-next=W0107
-    pass
-
-class DataGapError(ValueError):
-    """Runtime exception raised to communicate that a gap in the
-    available strain data prevents further processing and plotting.
     """
     # pylint: disable-next=W0107
     pass
