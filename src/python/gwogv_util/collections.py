@@ -19,7 +19,26 @@
 
 """Classes encapsulating collections of attributes"""
 
+from collections import namedtuple
+
 class AttributeHolder:
     """Instances of this class will serve as glorified dictionaries."""
     # pylint: disable-next=W0107
     pass
+
+DataDescriptor = namedtuple(
+    'DataDescriptor',
+    [
+        'interferometer',
+        't_start',
+        't_end',
+        'sample_rate'
+    ]   
+)
+
+DataDescriptor.__doc__ = \
+    """Parameters identifying the loaded strain data segment.
+
+    This provides a hashable, immutable tuple whose fields are accessible
+    through attribute references.
+    """

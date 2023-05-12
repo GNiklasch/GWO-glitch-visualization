@@ -64,7 +64,7 @@ from matplotlib.ticker import LogFormatter, NullFormatter, \
     AutoMinorLocator, MultipleLocator, NullLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-from gwogv_util.collections import AttributeHolder
+from gwogv_util.collections import AttributeHolder, DataDescriptor
 from gwogv_util.exception import DataGapError, ZeroFrequencyRangeError
 from gwogv_util.time import gps_to_isot, iso_to_gps, any_to_gps, now_as_isot
 from gwogv_util.plotutil.ticker import MyFormatter
@@ -113,28 +113,36 @@ app_conf.LOW_RATE, app_conf.HIGH_RATE = (4096, 16384)
 # -- Helper methods: cacheable data...
 # ---------------------------------------------------------------------------
 
-def _load_strain_impl(interferometer, t_start, t_end,
-                      sample_rate=app_conf.LOW_RATE):
+def _load_strain_impl(data_descriptor):
     """Workhorse wrapper around TimeSeries.fetch_open_data()"""
     # pylint: disable=redefined-outer-name
     # Work around bug #1612 in GWpy:  fetch_open_data() would fail if t_end
     # falls on  (or a fraction of a second before)  the boundary between
     # two successive 4096 s chunks.  Asking for a fraction of a second
     # *more* just past this boundary avoids the issue.
-    t_end_fudged = t_end + 1/64.
+    t_end_fudged = data_descriptor.t_end + 1/64.
     # (Is GWpy's URL caching thread-safe?  I certainly don't dare to turn
     # it on for multi-user operation in the cloud, without having control
     # over cache entry lifetimes.)
     # The other question is whether it's actually useful here...
-    strain = TimeSeries.fetch_open_data(interferometer, t_start, t_end_fudged,
-                                        sample_rate=sample_rate,
-                                        cache=overrides.url_caching)
-    intervals = int((t_end - t_start) * 8) - 1
+    strain = TimeSeries.fetch_open_data(
+        data_descriptor.interferometer,
+        data_descriptor.t_start,
+        t_end_fudged,
+        sample_rate=data_descriptor.sample_rate,
+        cache=overrides.url_caching)
+    intervals = \
+        int((data_descriptor.t_end - data_descriptor.t_start) * 8) - 1
     flag = StateTimeSeries(
-        [not np.isnan(strain.value_at(t_start + i/8. + 1/16.))
-         for i in range(intervals)],
+        [
+            not np.isnan(
+                strain.value_at(data_descriptor.t_start + i/8. + 1/16.)
+            )
+            for i in range(intervals)
+        ],
         sample_rate=8,
-        epoch=t_start).to_dqflag(round=False)
+        epoch=data_descriptor.t_start
+    ).to_dqflag(round=False)
     return (strain, flag)
 
 # The load_strain() indirection below will branch to one or the other
@@ -146,29 +154,25 @@ def _load_strain_impl(interferometer, t_start, t_end,
 # For local use where more than 1 GiB of RAM is available, we may use wider
 # cache blocks  (typically 512 s at the low sample rate)  when requested.
 @st.cache_data(max_entries=16 if overrides.large_caches else 8)
-def load_low_rate_strain(interferometer, t_start, t_end,
-                         sample_rate=app_conf.LOW_RATE):
+def load_low_rate_strain(data_descriptor):
     """Cacheable wrapper around low-sample-rate data fetching"""
     # pylint: disable=redefined-outer-name
-    return _load_strain_impl(interferometer, t_start, t_end,
-                            sample_rate=sample_rate)
+    return _load_strain_impl(data_descriptor)
 
 @st.cache_data(max_entries=8 if overrides.large_caches else 3)
-def load_high_rate_strain(interferometer, t_start, t_end,
-                          sample_rate=app_conf.HIGH_RATE):
+def load_high_rate_strain(data_descriptor):
     """Cacheable wrapper around high-sample-rate data fetching"""
     # pylint: disable=redefined-outer-name
-    return _load_strain_impl(interferometer, t_start, t_end,
-                            sample_rate=sample_rate)
+    return _load_strain_impl(data_descriptor)
 
 # Recomputing a spectrogram or a const-Q transform doesn't take as long
 # as plotting the results does, but caching them may still improve the
 # user experience a little.
 # Streamlit can't use the strain as the hash key, but it *can* use what
-# we had used to fetch it - whence the dummy arguments.
+# we had used to fetch it - whence the dummy argument.
 @st.cache_data(max_entries=10 if overrides.large_caches else 4)
 # pylint: disable-next=too-many-arguments, redefined-outer-name
-def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
+def make_specgram(_strain, data_descriptor,
                   t_plotstart, t_plotend, stride, overlap):
     """Cacheable wrapper around TimeSeries.spectogram()"""
     # pylint: disable=unused-argument, redefined-outer-name
@@ -177,7 +181,7 @@ def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
 
 @st.cache_data(max_entries=16 if overrides.large_caches else 4)
 # pylint: disable-next=too-many-arguments, redefined-outer-name
-def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
+def transform_strain(_strain, data_descriptor,
                      t_plotstart, t_plotend, t_pad, q_val, whiten):
     """Cacheable wrapper around TimeSeries.q_transform(), with graceful
     backoff to reduced padding when we're (too) close to a data gap"""
@@ -201,8 +205,8 @@ def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
         # potentially losing output at low frequencies.
         padding = min(
             2.5 * t_pad,
-            t_end - t_plotend,
-            t_plotstart - t_start
+            data_descriptor.t_end - t_plotend,
+            t_plotstart - data_descriptor.t_start
         )
         strain_cropped = _strain.crop(
             t_plotstart - padding,
@@ -787,6 +791,13 @@ t_end = t_cache_boundaries * \
 t_plotstart = t0 - t_halfwidth
 t_plotend = t0 + t_halfwidth
 
+data_descriptor = DataDescriptor(
+    interferometer=interferometer,
+    t_start=t_start,
+    t_end=t_end,
+    sample_rate=sample_rate
+)
+
 # GWpy's GPSLocator is quirky...  Major ticks every 3 seconds, and then
 # minor ticks every 0.75 s, are ugly.  The matplotlib alternatives aren't
 # entirely satisfactory either.  MultipleLocator will put its major ticks
@@ -857,10 +868,7 @@ state_msg = state_adv.format(interferometer, app_conf.CHUNK_SIZE)
 load_strain_state = st.markdown(state_msg)
 
 try:
-    strain, flag_data = load_strain(
-        interferometer,
-        t_start, t_end, sample_rate
-    )
+    strain, flag_data = load_strain(data_descriptor)
 # pylint: disable-next=broad-exception-caught
 except Exception:
     load_strain_state.markdown('')
@@ -1186,7 +1194,7 @@ if do_spec:
     spec_overlap = spec_stride / 4
     specgram = make_specgram(
         strain_cropped,
-        interferometer, t_start, t_end, sample_rate,
+        data_descriptor,
         t_plotstart, t_plotend,
         stride=spec_stride, overlap=spec_overlap
     )
@@ -1240,9 +1248,8 @@ if do_qtsf:
 
     try:
         q_gram, q_warning = transform_strain(
-            strain, interferometer,
-            t_start, t_end,
-            sample_rate,
+            strain,
+            data_descriptor,
             t_plotstart, t_plotend, app_conf.T_PAD,
             q_val=q0,
             whiten=whiten_qtsf
