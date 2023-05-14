@@ -68,6 +68,7 @@ from gwogv_util.collections import AttributeHolder, DataDescriptor
 from gwogv_util.exception import DataGapError, ZeroFrequencyRangeError
 from gwogv_util.time import gps_to_isot, iso_to_gps, any_to_gps, now_as_isot
 from gwogv_util.plotutil.ticker import MyFormatter
+import gwogv_util.spectrogram as spec_gram
 
 # Importing customcm is required since it registers our custom colormap
 # and its reversed form with matplotlib.
@@ -106,7 +107,6 @@ overrides = parser.parse_args()
 # ---------------------------------------------------------------------------
 
 app_conf = AttributeHolder()
-
 app_conf.LOW_RATE, app_conf.HIGH_RATE = (4096, 16384)
 
 # ---------------------------------------------------------------------------
@@ -164,20 +164,6 @@ def load_high_rate_strain(data_descriptor):
     """Cacheable wrapper around high-sample-rate data fetching"""
     # pylint: disable=redefined-outer-name
     return _load_strain_impl(data_descriptor)
-
-# Recomputing a spectrogram or a const-Q transform doesn't take as long
-# as plotting the results does, but caching them may still improve the
-# user experience a little.
-# Streamlit can't use the strain as the hash key, but it *can* use what
-# we had used to fetch it - whence the dummy argument.
-@st.cache_data(max_entries=10 if overrides.large_caches else 4)
-# pylint: disable-next=too-many-arguments, redefined-outer-name
-def make_specgram(_strain, data_descriptor,
-                  t_plotstart, t_plotend, stride, overlap):
-    """Cacheable wrapper around TimeSeries.spectogram()"""
-    # pylint: disable=unused-argument, redefined-outer-name
-    specgram = _strain.spectrogram(stride=stride, overlap=overlap) ** (1/2.)
-    return specgram
 
 @st.cache_data(max_entries=16 if overrides.large_caches else 4)
 # pylint: disable-next=too-many-arguments, redefined-outer-name
@@ -470,9 +456,12 @@ app_conf.ASD_INITIAL_Y = (
     app_conf.ASD_Y_DETENTS[1],
     app_conf.ASD_Y_DETENTS[-4]
 )
+
+app_conf.SPEC_V_DECADES = app_conf.ASD_Y_DECADES
+app_conf.SPEC_V_DETENTS = list(app_conf.SPEC_V_DECADES)
 app_conf.SPEC_INITIAL_V = (
-    app_conf.ASD_Y_DETENTS[1],
-    app_conf.ASD_Y_DETENTS[-4]
+    app_conf.SPEC_V_DETENTS[1],
+    app_conf.SPEC_V_DETENTS[-4]
 )
 
 # Spectrograms will have 8 Hz resolution except for very short widths where
@@ -540,7 +529,7 @@ with st.sidebar.form('load_what'):
     )
     t0_text = st.text_input(
         '''**seconds of strain data around GPS
-        (or ISO 8601-formatted UTC) timestamp:**''',
+        (or ISO 8601-formatted UTC) timestamp t0:**''',
         app_conf.INITIAL_T0_GPS
     )
     cache_wide_blocks = False
@@ -549,6 +538,10 @@ with st.sidebar.form('load_what'):
             r'\- use wide cache blocks',
             value=True
         )
+    raw_vline_enabled = st.checkbox(
+        r'\- highlight t0 in the raw data plot',
+        value=True
+    )
     sample_rate = st.selectbox(
         '**Sample rate:**',
         app_conf.SAMPLE_RATES
@@ -561,24 +554,30 @@ with st.sidebar.form('load_what'):
     )
 
 # Preprocess parameters which depend on the sample rate and/or interferometer:
+
+spec_settings = AttributeHolder()
+
 if sample_rate < app_conf.HIGH_RATE:
     f_detents_eff = app_conf.F_DETENTS[0:30]
     asd_f_detents_eff = app_conf.F_DETENTS[0:31]
-    spec_f_detents_eff = app_conf.SPEC_F_DETENTS[0:8]
-    spec_figsize = (12, 6)
+    spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS[0:8]
+    spec_settings.figsize = (12, 6)
     qtsf_figsize = (12, 7)
     load_strain = load_low_rate_strain
 else:
     f_detents_eff = app_conf.F_DETENTS[0:38]
     asd_f_detents_eff = app_conf.F_DETENTS
-    spec_f_detents_eff = app_conf.SPEC_F_DETENTS
-    spec_figsize = (12, 7)
+    spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS
+    spec_settings.figsize = (12, 7)
     qtsf_figsize = (12, 8)
     load_strain = load_high_rate_strain
 
 f_initial_range = (f_detents_eff[1], f_detents_eff[28])
 asd_initial_f_range = (asd_f_detents_eff[1], asd_f_detents_eff[-1])
-spec_initial_f_range = (spec_f_detents_eff[0], spec_f_detents_eff[-1])
+spec_settings.initial_f_range = (
+    spec_settings.f_detents_eff[0],
+    spec_settings.f_detents_eff[-1]
+)
 
 calib_freq_low = app_conf.calib_freqs_low[interferometer]
 calib_caveat = f'Caution: Strain data below {calib_freq_low} Hz from' + \
@@ -612,7 +611,7 @@ with st.sidebar.form('plot_how'):
         value=True
     )
     filtered_vline_enabled = st.checkbox(
-        r'\- highlight t0 in raw and filtered data plots',
+        r'\- highlight t0',
         value=True
     )
 
@@ -623,6 +622,7 @@ with st.sidebar.form('plot_how'):
     )
 
 # ... ASD spectrum form:
+
 with st.sidebar.form('asd_how'):
     do_show_asd_txt = st.selectbox(
         'Shall we show ASD?',
@@ -648,8 +648,8 @@ with st.sidebar.form('asd_how'):
         app_conf.ASD_Y_DECADES[asd_y_high]
     )
     asd_offset_choice = st.select_slider(
-        '''**Optional background ASD spectrum,
-        from [s] earlier or later:**''',
+        '''**Also plot an optional background ASD spectrum,
+        from [seconds] earlier or later:**''',
         app_conf.ASD_OFFSET_DETENTS,
         value=app_conf.ASD_INITIAL_OFFSET
     )
@@ -666,6 +666,10 @@ with st.sidebar.form('asd_how'):
     )
 
 # ... Spectrogram form:
+
+spec_gram.configure(app_conf, appearance, overrides)
+spec_plotter = spec_gram.Spectrogram(spec_settings)
+
 with st.sidebar.form('spec_how'):
     do_spec_txt = st.selectbox(
         'Shall we spec?',
@@ -675,39 +679,7 @@ with st.sidebar.form('spec_how'):
     do_spec = app_conf.YORN[do_spec_txt]
 
     st.markdown('### ...show a spectrogram:')
-    spec_f_range = st.select_slider(
-        '**Spectrogram frequency range [Hz]:**',
-        spec_f_detents_eff,
-        value=spec_initial_f_range
-    )
-    spec_v_low, spec_v_high = st.select_slider(
-        '**Spectrogram ASD range, decades:**',
-        app_conf.ASD_Y_DETENTS,
-        value=app_conf.SPEC_INITIAL_V
-    )
-    spec_v_min, spec_v_max = (
-        app_conf.ASD_Y_DECADES[spec_v_low],
-        app_conf.ASD_Y_DECADES[spec_v_high]
-    )
-    spec_grid_enabled = st.checkbox(
-        r'\- enable grid overlay',
-        value=True
-    )
-    spec_vline_enabled = st.checkbox(
-        r'\- highlight t0',
-        value=True
-    )
-
-    # Default is our custom Jetstream colormap, which is similar to one
-    # used in the Virgo electronic logs.
-    # Streamlit doesn't allow negative indices counting backward from
-    # the end of the selectbox options...
-    spec_colormap_choice = st.selectbox(
-        '**Spectrogram colormap:**',
-        appearance.COLORMAP_CHOICES,
-        index=len(appearance.COLORMAP_CHOICES)-2
-    )
-    spec_colormap = appearance.COLORMAPS[spec_colormap_choice]
+    spec_plotter.solicit_choices()
 
     spec_submitted = st.form_submit_button(
         'Apply spectrogram settings',
@@ -819,6 +791,15 @@ if t_width >= 32:
 else:
     t_epoch = floor(t0)
     t_major = min(1, t_width / 8)
+
+data_settings = AttributeHolder()
+data_settings.t0 = t0
+data_settings.t0_iso = t0_iso
+data_settings.t_width = t_width
+data_settings.t_plotstart = t_plotstart
+data_settings.t_plotend = t_plotend
+data_settings.t_epoch = t_epoch
+data_settings.t_major = t_major
 
 # ---------------------------------------------------------------------------
 # -- Data load processing...
@@ -949,7 +930,7 @@ try:
         if t_width <= 4.0:
             ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
         ax.set_ylabel('dimensionless')
-        if filtered_vline_enabled:
+        if raw_vline_enabled:
             ax.axvline(t0, color=appearance.VLINE_COLOR, linestyle='--')
         st.pyplot(figure_raw, clear_figure=True)
 
@@ -1032,9 +1013,10 @@ if do_plot:
         if np.isnan(filtered.max()):
             raise DataGapError()
 
-        filtered_title = \
-            f'''{interferometer}, around {t0} ({t0_iso} UTC){wh_note},
-            band pass: {f_range[0]} - {f_range[1]} Hz'''
+        filtered_title = (
+            f'''{interferometer}, around {t0} ({t0_iso} UTC){wh_note},'''
+            f''' band pass: {f_range[0]} - {f_range[1]} Hz'''
+        )
 
         with _lock:
             figure_filtered = filtered_cropped.plot(
@@ -1112,9 +1094,10 @@ if do_show_asd:
         else:
             pass
 
-        asd_title = \
-            f'''{interferometer}, during {t_width} s around
-            {t0} GPS ({t0_iso} UTC)'''
+        asd_title = (
+            f'''{interferometer}, during {t_width} s around'''
+            f''' {t0} GPS ({t0_iso} UTC)'''
+        )
         asd_xlabel = \
             f'Frequency [Hz], {asd_f_range[0]} - {asd_f_range[1]} Hz'
         asd_ylabel = r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]'
@@ -1189,51 +1172,20 @@ st.divider()
 if do_spec:
     st.subheader('Spectrogram')
 
-    spec_title = f'{interferometer}, around {t0} GPS ({t0_iso} UTC)'
-    spec_stride = min(t_width / 8, app_conf.BASIC_SPEC_STRIDE)
-    spec_overlap = spec_stride / 4
-    specgram = make_specgram(
-        strain_cropped,
-        data_descriptor,
-        t_plotstart, t_plotend,
-        stride=spec_stride, overlap=spec_overlap
-    )
     # Unlike other visualizations, spectrograms overlapping a data gap
-    # would fail gracefully, leaving that part blank but keeping the time
-    # axis and all the ticks where we want them to be - and unlike others,
-    # they never depend on data outside the plotted time interval, so there's
-    # no "too close to a data gap" case.
+    # would fail gracefully, leaving that part blank but keeping the
+    # time axis and all the ticks where we want them to be - and unlike
+    # others, they never depend on data outside the plotted time interval,
+    # so there's no "too close to a data gap" case.
     # But we never get here when the plotted interval overlaps a data gap
     # by more than its endpoint, since we have the raw data plot section
     # bail out and stop the script in this case (for consistency).
 
-    with _lock:
-        figure_spec = specgram.plot(figsize=spec_figsize)
-        ax = figure_spec.gca()
-        cax = make_axes_locatable(ax).append_axes(
-            "right",
-            size="5%", pad="3%"
-        )
-        figure_spec.colorbar(
-            label=r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]',
-            cax=cax, cmap=spec_colormap,
-            vmin=spec_v_min, vmax=spec_v_max,
-            norm='log'
-        )
-        ax.set_title(spec_title, fontsize=appearance.SPEC_TITLE_FONTSIZE)
-        cax.yaxis.set_minor_formatter(NullFormatter())
-        ax.grid(spec_grid_enabled)
-        cax.grid(spec_grid_enabled)
-        ax.set_xscale('seconds', epoch=t_epoch)
-        if t_width >= 1.0:
-            ax.xaxis.set_major_locator(MultipleLocator(base=t_major))
-        if t_width <= 4.0:
-            ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
-        ax.set_yscale('log', base=2)
-        ax.set_ylim(spec_f_range)
-        if spec_vline_enabled:
-            ax.axvline(t0, color=appearance.VLINE_COLOR, linestyle='--')
-        st.pyplot(figure_spec, clear_figure=True)
+    spec_plotter.plot_spectrogram(
+        strain_cropped,
+        data_descriptor,
+        data_settings
+    )
 else:
     st.write('(Skipping spectrogram.)')
 
@@ -1267,9 +1219,10 @@ if do_qtsf:
         )
     else:
         q_wh_note = ', whitened' if whiten_qtsf else ''
-        qtsf_title = \
-            f'''{interferometer}, around {t0} ({t0_iso} UTC),
-            Q={q0}{q_wh_note}'''
+        qtsf_title = (
+            f'''{interferometer}, around {t0} ({t0_iso} UTC),'''
+            f''' Q={q0}{q_wh_note}'''
+        )
 
         with _lock:
             figure_qgram = q_gram.plot(figsize=qtsf_figsize)
