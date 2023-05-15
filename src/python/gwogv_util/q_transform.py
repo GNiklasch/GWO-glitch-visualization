@@ -244,4 +244,3 @@ class QTransform:
             st.warning(q_caveat)
         else:
             pass
-
