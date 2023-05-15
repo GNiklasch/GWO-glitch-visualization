@@ -72,7 +72,7 @@ class Spectrogram:
         """Save settings dependent on the sample rate for later use."""
         self.spec_settings = spec_settings
 
-    def solicit_choices(self):
+    def solicit_choices(self) -> None:
         """Input widgets controlling how to plot the spectrogram."""
         self.spec_f_range = st.select_slider(
             '**Spectrogram frequency range [Hz]:**',

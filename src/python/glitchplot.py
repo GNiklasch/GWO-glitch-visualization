@@ -69,6 +69,7 @@ from gwogv_util.exception import DataGapError, ZeroFrequencyRangeError
 from gwogv_util.time import gps_to_isot, iso_to_gps, any_to_gps, now_as_isot
 from gwogv_util.plotutil.ticker import MyFormatter
 import gwogv_util.spectrogram as spec_gram
+import gwogv_util.q_transform as qtsf_gram
 
 # Importing customcm is required since it registers our custom colormap
 # and its reversed form with matplotlib.
@@ -164,71 +165,6 @@ def load_high_rate_strain(data_descriptor):
     """Cacheable wrapper around high-sample-rate data fetching"""
     # pylint: disable=redefined-outer-name
     return _load_strain_impl(data_descriptor)
-
-@st.cache_data(max_entries=16 if overrides.large_caches else 4)
-# pylint: disable-next=too-many-arguments, redefined-outer-name
-def transform_strain(_strain, data_descriptor,
-                     t_plotstart, t_plotend, t_pad, q_val, whiten):
-    """Cacheable wrapper around TimeSeries.q_transform(), with graceful
-    backoff to reduced padding when we're (too) close to a data gap"""
-    # pylint: disable=unused-argument, redefined-outer-name
-    outseg = (t_plotstart, t_plotend)
-    # Without nailing down logf and fres, q_transform() would default to a
-    # very high value for the number of frequency steps, somehow resulting
-    # in exorbitant memory consumption for the ad-hoc modified colormaps
-    # created during plotting  (on the order of 380 MiB for a single
-    # Q-transform plot at high sample rate!).
-    fres = ceil(max(600, 24 * q_val) *
-                (1 if sample_rate < app_conf.HIGH_RATE else 1.3))
-    q_warning = 0
-    try:
-        # The q_transform output would be distorted when the available strain
-        # segment is much longer and isn't symmetric around t0:  Above a
-        # certain frequency  (which depends on the padding and on the Q-value)
-        # all features would be displaced to the left.  Pre-cropping the data
-        # prevents this  (and speeds up processing, too).  Pre-cropping too
-        # tightly, however, would result in broader whitening artefacts and
-        # potentially losing output at low frequencies.
-        padding = min(
-            2.5 * t_pad,
-            data_descriptor.t_end - t_plotend,
-            t_plotstart - data_descriptor.t_start
-        )
-        strain_cropped = _strain.crop(
-            t_plotstart - padding,
-            t_plotend + padding
-        )
-        q_gram = strain_cropped.q_transform(
-            outseg=outseg, qrange=(q_val, q_val),
-            logf = True, fres = fres,
-            whiten=whiten, fduration=t_pad
-        )
-    except ValueError:
-        q_warning = 1
-        try:
-            # ...with less padding:
-            strain_cropped = _strain.crop(
-                t_plotstart - t_pad,
-                t_plotend + t_pad
-            )
-            q_gram = strain_cropped.q_transform(
-                outseg=outseg, qrange=(q_val, q_val),
-                logf = True, fres = fres,
-                whiten=whiten, fduration=t_pad
-            )
-        except ValueError:
-            q_warning = 2
-            # One last try, with no padding:
-            strain_cropped = _strain.crop(t_plotstart, t_plotend)
-            # Here, the default fduration=2 applies.
-            q_gram = strain_cropped.q_transform(
-                outseg=outseg, qrange=(q_val, q_val),
-                logf = True, fres = fres,
-                whiten=whiten
-            )
-            # If this last-ditch attempt fails, the exception is raised up
-            # to our call site.
-    return (q_gram, q_warning)
 
 # ---------------------------------------------------------------------------
 # ...memory profiling...
@@ -556,20 +492,21 @@ with st.sidebar.form('load_what'):
 # Preprocess parameters which depend on the sample rate and/or interferometer:
 
 spec_settings = AttributeHolder()
+qtsf_settings = AttributeHolder()
 
 if sample_rate < app_conf.HIGH_RATE:
     f_detents_eff = app_conf.F_DETENTS[0:30]
     asd_f_detents_eff = app_conf.F_DETENTS[0:31]
     spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS[0:8]
     spec_settings.figsize = (12, 6)
-    qtsf_figsize = (12, 7)
+    qtsf_settings.figsize = (12, 7)
     load_strain = load_low_rate_strain
 else:
     f_detents_eff = app_conf.F_DETENTS[0:38]
     asd_f_detents_eff = app_conf.F_DETENTS
     spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS
     spec_settings.figsize = (12, 7)
-    qtsf_figsize = (12, 8)
+    qtsf_settings.figsize = (12, 8)
     load_strain = load_high_rate_strain
 
 f_initial_range = (f_detents_eff[1], f_detents_eff[28])
@@ -688,6 +625,10 @@ with st.sidebar.form('spec_how'):
     )
 
 # ... Q-transform form:
+
+qtsf_gram.configure(app_conf, appearance, overrides)
+qtsf_plotter = qtsf_gram.QTransform(qtsf_settings)
+
 with st.sidebar.form('qtsf_how'):
     do_qtsf_txt = st.selectbox(
         'Shall we qtsf?',
@@ -698,35 +639,8 @@ with st.sidebar.form('qtsf_how'):
     do_qtsf = app_conf.YORN[do_qtsf_txt]
 
     st.markdown('### ...render a constant-Q transform:')
+    qtsf_plotter.solicit_choices()
 
-    q0 = st.select_slider(
-        '**Q-value:**',
-        app_conf.Q_VALUES,
-        value=app_conf.INITIAL_Q
-    )
-    ne_cutoff = st.select_slider(
-        '**Normalized energy cutoff:**',
-        app_conf.NORMALIZED_ENERGIES,
-        value=app_conf.INITIAL_NE_CUTOFF
-    )
-    whiten_qtsf = st.checkbox(
-        r'\- whiten before transforming',
-        value=True
-    )
-    qtsf_grid_enabled = st.checkbox(
-        r'\- enable grid overlay',
-        value=True
-    )
-    qtsf_vline_enabled = st.checkbox(
-        r'\- highlight t0',
-        value=True
-    )
-    qtsf_colormap_choice = st.selectbox(
-        '**Q transform colormap:**',
-        appearance.COLORMAP_CHOICES,
-        index=0 # Default is Viridis  (same as Gravity Spy's)
-    )
-    qtsf_colormap = appearance.COLORMAPS[qtsf_colormap_choice]
 
     qtsf_submitted = st.form_submit_button(
         'Apply Q transform settings',
