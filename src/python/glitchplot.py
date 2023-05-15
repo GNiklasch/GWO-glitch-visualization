@@ -1112,71 +1112,11 @@ st.divider()
 if do_qtsf:
     st.subheader('Constant-Q transform')
 
-    try:
-        q_gram, q_warning = transform_strain(
-            strain,
-            data_descriptor,
-            t_plotstart, t_plotend, app_conf.T_PAD,
-            q_val=q0,
-            whiten=whiten_qtsf
-        )
-        q_error = False
-    except ValueError:
-        q_warning = 0
-        q_error = True
-
-    if q_error:
-        st.error(
-            '''t0 is too close to (or inside) a data gap, unable to
-            compute the Q-transform. Try a shorter time interval or
-            try varying the requested timestamp.'''
-        )
-    else:
-        q_wh_note = ', whitened' if whiten_qtsf else ''
-        qtsf_title = (
-            f'''{interferometer}, around {t0} ({t0_iso} UTC),'''
-            f''' Q={q0}{q_wh_note}'''
-        )
-
-        with _lock:
-            figure_qgram = q_gram.plot(figsize=qtsf_figsize)
-            ax = figure_qgram.gca()
-            cax = make_axes_locatable(ax).append_axes(
-                "right",
-                size="5%", pad="3%"
-            )
-            figure_qgram.colorbar(
-                label="Normalized energy",
-                cax=cax, cmap=qtsf_colormap,
-                clim=(0, ne_cutoff)
-            )
-            ax.set_title(qtsf_title, fontsize=appearance.QTSF_TITLE_FONTSIZE)
-            ax.title.set_position([.5, 1.05])
-            ax.grid(qtsf_grid_enabled)
-            cax.grid(qtsf_grid_enabled)
-            ax.set_xscale('seconds', epoch=t_epoch)
-            if t_width >= 1.0:
-                ax.xaxis.set_major_locator(MultipleLocator(base=t_major))
-            if t_width <= 4.0:
-                ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
-            ax.set_yscale('log', base=2)
-            ax.set_ylim(bottom=10)
-            if qtsf_vline_enabled:
-                ax.axvline(t0, color=appearance.VLINE_COLOR, linestyle='--')
-            st.pyplot(figure_qgram, clear_figure=True)
-
-        if q_warning > 0:
-            q_caveat = \
-                '''t0 is close to a data gap, thus the Q-transform could
-                not look{0} beyond the edges of what has been plotted and
-                areas near these edges may contain artefacts.
-                Also, information about low frequencies may be insufficient
-                to paint that region.
-                '''.format(' far' if q_warning == 1 else '')
-            st.warning(q_caveat)
-        else:
-            pass
-
+    qtsf_plotter.plot_q_transform(
+        strain,
+        data_descriptor,
+        data_settings
+    )
 else:
     st.write('(Skipping Q-transform rendering.)')
 
