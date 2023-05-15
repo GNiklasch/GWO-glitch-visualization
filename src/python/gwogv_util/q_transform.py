@@ -23,8 +23,7 @@ from math import ceil
 
 import streamlit as st
 from matplotlib.backends.backend_agg import RendererAgg
-from matplotlib.ticker import NullFormatter, \
-    AutoMinorLocator, MultipleLocator
+from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # We implicitly use gwpy.timeseries.TimeSeries of which the strain object
