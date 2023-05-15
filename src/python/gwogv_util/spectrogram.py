@@ -114,7 +114,11 @@ class Spectrogram:
             data_descriptor,
             data_settings
     ) -> None:
-        """Proceed to plot the spectrogram."""
+        """Proceed to plot the spectrogram.
+
+        Relies on user input choices from a prior call to the
+        `solicit_choices()` method.
+        """
         spec_title = (
             f'''{data_descriptor.interferometer}, around'''
             f''' {data_settings.t0} GPS ({data_settings.t0_iso} UTC)'''
