@@ -28,12 +28,12 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 # We implicitly use gwpy.timeseries.TimeSeries of which the strain object
 # will be an instance.
 
-_lock = RendererAgg.lock
-
 # Importing customcm is required since it registers our custom colormap
 # and its reversed form with matplotlib.
 # pylint: disable-next=unused-import
 import gwogv_util.plotutil.customcm
+
+_lock = RendererAgg.lock
 
 large_caches = False
 
