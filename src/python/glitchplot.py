@@ -787,6 +787,10 @@ if np.isnan(strain_cropped.value[-1]):
         t_plotend
     )
 
+data = AttributeHolder()
+data.strain = strain
+data.strain_cropped = strain_cropped
+
 # Explicit garbage collections may well be overkill, but if we want
 # to do them at all, now is a good time - chances are we have just
 # purged an old strain entry from the cache, and local variables
@@ -971,8 +975,7 @@ if do_show_asd:
     # (to a whole decade!).  Leaving this in as an Easter egg;  it can
     # be (ab)used to look beyond the upper frequency cutoff.
     asd_plotter.plot_asd_spectrum(
-        strain,
-        strain_cropped,
+        data,
         data_descriptor,
         data_settings
     )
@@ -999,7 +1002,7 @@ if do_spec:
     # bail out and stop the script in this case (for consistency).
 
     spec_plotter.plot_spectrogram(
-        strain_cropped,
+        data,
         data_descriptor,
         data_settings
     )
@@ -1016,7 +1019,7 @@ if do_qtsf:
     st.subheader('Constant-Q transform')
 
     qtsf_plotter.plot_q_transform(
-        strain,
+        data,
         data_descriptor,
         data_settings
     )

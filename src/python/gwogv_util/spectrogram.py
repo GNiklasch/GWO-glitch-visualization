@@ -110,7 +110,7 @@ class Spectrogram:
 
     def plot_spectrogram(
             self,
-            strain_cropped,
+            data,
             data_descriptor,
             data_settings
     ) -> None:
@@ -129,7 +129,7 @@ class Spectrogram:
         )
         spec_overlap = spec_stride / 4
         specgram = make_specgram(
-            strain_cropped,
+            data.strain_cropped,
             data_descriptor,
             data_settings.t_plotstart,
             data_settings.t_plotend,

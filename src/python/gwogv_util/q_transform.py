@@ -162,7 +162,7 @@ class QTransform:
 
     def plot_q_transform(
             self,
-            strain,
+            data,
             data_descriptor,
             data_settings
     ) -> None:
@@ -173,7 +173,7 @@ class QTransform:
         """
         try:
             q_gram, q_warning = transform_strain(
-                strain,
+                data.strain,
                 data_descriptor,
                 data_settings.t_plotstart,
                 data_settings.t_plotend,

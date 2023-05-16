@@ -80,8 +80,7 @@ class ASDSpectrum:
 
     def plot_asd_spectrum(
             self,
-            strain,
-            strain_cropped,
+            data,
             data_descriptor,
             data_settings
     ) -> None:
@@ -94,12 +93,12 @@ class ASDSpectrum:
         try:
             # Computing the ASD will fail when the cropped interval overlaps
             # a data gap.  The tell-tale symptom is somewhat obscure:
-            strain_asd = strain_cropped.asd()
+            strain_asd = data.strain_cropped.asd()
             if np.isnan(strain_asd.max().to_value()):
                 raise DataGapError()
 
             if not self.asd_offset == 0:
-                strain_bgnd_asd = strain.crop(
+                strain_bgnd_asd = data.strain.crop(
                     data_settings.t_plotstart + self.asd_offset,
                     data_settings.t_plotend + self.asd_offset
                 ).asd()
