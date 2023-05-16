@@ -67,9 +67,9 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from gwogv_util.collections import AttributeHolder, DataDescriptor
 from gwogv_util.exception import DataGapError, ZeroFrequencyRangeError
 from gwogv_util.time import gps_to_isot, iso_to_gps, any_to_gps, now_as_isot
-from gwogv_util.plotutil.ticker import MyFormatter
 import gwogv_util.spectrogram as spec_gram
 import gwogv_util.q_transform as qtsf_gram
+import gwogv_util.asd_spectrum as asd_gram
 
 # Importing customcm is required since it registers our custom colormap
 # and its reversed form with matplotlib.
@@ -491,34 +491,42 @@ with st.sidebar.form('load_what'):
 
 # Preprocess parameters which depend on the sample rate and/or interferometer:
 
+asd_settings = AttributeHolder()
 spec_settings = AttributeHolder()
 qtsf_settings = AttributeHolder()
 
 if sample_rate < app_conf.HIGH_RATE:
     f_detents_eff = app_conf.F_DETENTS[0:30]
-    asd_f_detents_eff = app_conf.F_DETENTS[0:31]
+    asd_settings.f_detents_eff = app_conf.F_DETENTS[0:31]
     spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS[0:8]
     spec_settings.figsize = (12, 6)
     qtsf_settings.figsize = (12, 7)
     load_strain = load_low_rate_strain
 else:
     f_detents_eff = app_conf.F_DETENTS[0:38]
-    asd_f_detents_eff = app_conf.F_DETENTS
+    asd_settings.f_detents_eff = app_conf.F_DETENTS
     spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS
     spec_settings.figsize = (12, 7)
     qtsf_settings.figsize = (12, 8)
     load_strain = load_high_rate_strain
 
 f_initial_range = (f_detents_eff[1], f_detents_eff[28])
-asd_initial_f_range = (asd_f_detents_eff[1], asd_f_detents_eff[-1])
+asd_settings.initial_f_range = (
+    asd_settings.f_detents_eff[1],
+    asd_settings.f_detents_eff[-1]
+)
 spec_settings.initial_f_range = (
     spec_settings.f_detents_eff[0],
     spec_settings.f_detents_eff[-1]
 )
 
 calib_freq_low = app_conf.calib_freqs_low[interferometer]
-calib_caveat = f'Caution: Strain data below {calib_freq_low} Hz from' + \
+calib_caveat = (
+    f'Caution: Strain data below {calib_freq_low} Hz from'
     f" {interferometer} aren't calibrated."
+)
+asd_settings.calib_freq_low = calib_freq_low
+asd_settings.calib_caveat = calib_caveat
 
 # pylint: disable-next=implicit-str-concat
 st.sidebar.caption(
@@ -560,6 +568,9 @@ with st.sidebar.form('plot_how'):
 
 # ... ASD spectrum form:
 
+asd_gram.configure(app_conf, appearance, overrides)
+asd_plotter = asd_gram.ASDSpectrum(asd_settings)
+
 with st.sidebar.form('asd_how'):
     do_show_asd_txt = st.selectbox(
         'Shall we show ASD?',
@@ -569,32 +580,7 @@ with st.sidebar.form('asd_how'):
     do_show_asd = app_conf.YORN[do_show_asd_txt]
 
     st.markdown('### ...show amplitude spectral density as a spectrum:')
-
-    asd_f_range = st.select_slider(
-        '**Spectrum frequency range [Hz]:**',
-        asd_f_detents_eff,
-        value=asd_initial_f_range
-    )
-    asd_y_low, asd_y_high = st.select_slider(
-        '**Spectrum ASD range, decades:**',
-        app_conf.ASD_Y_DETENTS,
-        value=app_conf.ASD_INITIAL_Y
-    )
-    asd_y_range = (
-        app_conf.ASD_Y_DECADES[asd_y_low],
-        app_conf.ASD_Y_DECADES[asd_y_high]
-    )
-    asd_offset_choice = st.select_slider(
-        '''**Also plot an optional background ASD spectrum,
-        from [seconds] earlier or later:**''',
-        app_conf.ASD_OFFSET_DETENTS,
-        value=app_conf.ASD_INITIAL_OFFSET
-    )
-    asd_offset = app_conf.ASD_OFFSETS[asd_offset_choice]
-    # Just in case someone wants to extract a light-shaded plot:
-    asd_lighten = st.checkbox(
-        r'\- swap shades: light foreground (and heavy background)'
-    )
+    asd_plotter.solicit_choices()
 
     asd_submitted = st.form_submit_button(
         'Apply spectrum settings',
@@ -984,95 +970,12 @@ if do_show_asd:
     # frequency range gracefully by automatically expanding the range
     # (to a whole decade!).  Leaving this in as an Easter egg;  it can
     # be (ab)used to look beyond the upper frequency cutoff.
-
-    asd_bgnd_warning = False
-    try:
-        # Computing the ASD will fail when the cropped interval overlaps a
-        # data gap.  Again the tell-tale symptom is somewhat obscure:
-        strain_asd = strain_cropped.asd()
-        if np.isnan(strain_asd.max().to_value()):
-            raise DataGapError()
-
-        if not asd_offset == 0:
-            strain_bgnd_asd = strain.crop(
-                t_plotstart + asd_offset,
-                t_plotend + asd_offset
-            ).asd()
-            if np.isnan(strain_bgnd_asd.max().to_value()):
-                asd_bgnd_warning = True
-            else:
-                if asd_offset > 0:
-                    asd_bgnd_label = f'{asd_offset} s later'
-                else:
-                    asd_bgnd_label = f'{-asd_offset} s earlier'
-        else:
-            pass
-
-        asd_title = (
-            f'''{interferometer}, during {t_width} s around'''
-            f''' {t0} GPS ({t0_iso} UTC)'''
-        )
-        asd_xlabel = \
-            f'Frequency [Hz], {asd_f_range[0]} - {asd_f_range[1]} Hz'
-        asd_ylabel = r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]'
-
-        with _lock:
-            figure_asd = strain_asd.plot(
-                figsize=appearance.ASD_FIGSIZE,
-                color=appearance.ASD_LIGHT_COLOR if asd_lighten \
-                else appearance.PRIMARY_COLOR
-            )
-            ax = figure_asd.gca()
-            # Now that we have the axes configured, plotting a non-existent
-            # background FrequencySeries would just fail silently - but no
-            # need to even try when we already know it wouldn't work.
-            if not asd_offset == 0 and not asd_bgnd_warning:
-                ax.plot(
-                    strain_bgnd_asd,
-                    label=asd_bgnd_label,
-                    color=appearance.PRIMARY_COLOR if asd_lighten \
-                    else appearance.ASD_TRANSPARENT_COLOR
-                )
-                # We'll let matplotlib pick the best corner for the legend.
-                # GWpy's custom handler_map creates an example line segment
-                # that's rather thick, but with handler_map=None to reinstate
-                # matplotlib's defaults it would be too thin.
-                ax.legend(fontsize=appearance.ASD_TITLE_FONTSIZE)
-            ax.set_title(
-                asd_title,
-                fontsize=appearance.ASD_TITLE_FONTSIZE,
-                loc='right', pad=10.
-            )
-            ax.xaxis.set_major_formatter(LogFormatter(base=10))
-            ax.xaxis.set_minor_formatter(MyFormatter(asd_f_range))
-            ax.yaxis.set_minor_formatter(NullFormatter())
-            ax.set_xlim(asd_f_range)
-            ax.set_ylim(asd_y_range)
-            ax.set_ylabel(asd_ylabel, fontsize=appearance.ASD_LABEL_FONTSIZE)
-            ax.set_xlabel(asd_xlabel, fontsize=appearance.ASD_LABEL_FONTSIZE)
-            ax.xaxis.set_tick_params(which='major',
-                                     labelsize=appearance.ASD_LABEL_FONTSIZE)
-            ax.xaxis.set_tick_params(which='minor',
-                                     labelsize=appearance.ASD_LABEL_LABELSIZE)
-            ax.yaxis.set_tick_params(which='major',
-                                     labelsize=appearance.ASD_LABEL_LABELSIZE)
-            st.pyplot(figure_asd, clear_figure=True)
-
-        if asd_f_range[0] < calib_freq_low:
-            st.warning(calib_caveat)
-
-        if asd_bgnd_warning:
-            st.warning(
-                '''t0 is too close to a data gap, unable to include
-                a background spectrum. Try changing the time offset.'''
-            )
-
-    except DataGapError:
-        st.error(
-            '''t0 is too close to (or inside) a data gap, unable to
-            extract a spectrum. Try a shorter time interval or try
-            varying the requested timestamp.'''
-        )
+    asd_plotter.plot_asd_spectrum(
+        strain,
+        strain_cropped,
+        data_descriptor,
+        data_settings
+    )
 
 else:
     st.write('(Skipping ASD spectrum plot.)')
