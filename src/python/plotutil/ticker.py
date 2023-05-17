@@ -15,7 +15,8 @@
 # See the GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with GWpy.  If not, see <http://www.gnu.org/licenses/>.
+# along with GWO-glitch-visualization.
+# If not, see <http://www.gnu.org/licenses/>.
 
 """A custom minor formatter for use in `matplotlib` figures where the x-axis
 displays frequencies between 8 Hz and just under 6000 Hz on a logarithmic
