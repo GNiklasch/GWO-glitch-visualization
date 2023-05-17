@@ -172,6 +172,12 @@ class QTransform:
         Relies on user input choices from a prior call to the
         `solicit_choices()` method.
         """
+        q_wh_note = ', whitened' if self.whiten_qtsf else ''
+        qtsf_title = (
+            f'''{data_descriptor.interferometer}, around'''
+            f''' {data_settings.t0} ({data_settings.t0_iso} UTC),'''
+            f''' Q={self.q0}{q_wh_note}'''
+        )
         try:
             q_gram, q_warning = transform_strain(
                 data.strain,
@@ -194,12 +200,6 @@ class QTransform:
                 try varying the requested timestamp.'''
             )
             return
-        q_wh_note = ', whitened' if self.whiten_qtsf else ''
-        qtsf_title = (
-            f'''{data_descriptor.interferometer}, around'''
-            f''' {data_settings.t0} ({data_settings.t0_iso} UTC),'''
-            f''' Q={self.q0}{q_wh_note}'''
-        )
 
         with _lock:
             figure_qgram = q_gram.plot(figsize=self.qtsf_settings.figsize)

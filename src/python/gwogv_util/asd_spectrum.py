@@ -90,7 +90,18 @@ class ASDSpectrum:
         Relies on user input choices from a prior call to the
         `solicit_choices()` method.
         """
+        asd_title = (
+            f'''{data_descriptor.interferometer},'''
+            f''' during {data_settings.t_width} s around'''
+            f''' {data_settings.t0} GPS ({data_settings.t0_iso} UTC)'''
+        )
+        asd_xlabel = (
+            f'Frequency [Hz],'
+            f' {self.asd_f_range[0]} - {self.asd_f_range[1]} Hz'
+        )
+        asd_ylabel = r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]'
         asd_bgnd_warning = False
+
         try:
             # Computing the ASD will fail when the cropped interval overlaps
             # a data gap.  The tell-tale symptom is somewhat obscure:
@@ -112,17 +123,6 @@ class ASDSpectrum:
                         asd_bgnd_label = f'{-self.asd_offset} s earlier'
             else:
                 pass
-
-            asd_title = (
-                f'''{data_descriptor.interferometer},'''
-                f''' during {data_settings.t_width} s around'''
-                f''' {data_settings.t0} GPS ({data_settings.t0_iso} UTC)'''
-            )
-            asd_xlabel = (
-                f'Frequency [Hz],'
-                f' {self.asd_f_range[0]} - {self.asd_f_range[1]} Hz'
-            )
-            asd_ylabel = r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]'
 
             with _lock:
                 figure_asd = strain_asd.plot(
