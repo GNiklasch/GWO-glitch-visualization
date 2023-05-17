@@ -65,8 +65,9 @@ from matplotlib.ticker import LogFormatter, NullFormatter, \
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from gwogv_util.collections import AttributeHolder, DataDescriptor
-from gwogv_util.exception import DataGapError, ZeroFrequencyRangeError
+from gwogv_util.exception import DataGapError
 from gwogv_util.time import gps_to_isot, iso_to_gps, any_to_gps, now_as_isot
+import gwogv_util.filtered_data as filtered_gram
 import gwogv_util.spectrogram as spec_gram
 import gwogv_util.q_transform as qtsf_gram
 import gwogv_util.asd_spectrum as asd_gram
@@ -491,26 +492,30 @@ with st.sidebar.form('load_what'):
 
 # Preprocess parameters which depend on the sample rate and/or interferometer:
 
+filtered_settings = AttributeHolder()
 asd_settings = AttributeHolder()
 spec_settings = AttributeHolder()
 qtsf_settings = AttributeHolder()
 
 if sample_rate < app_conf.HIGH_RATE:
-    f_detents_eff = app_conf.F_DETENTS[0:30]
+    filtered_settings.f_detents_eff = app_conf.F_DETENTS[0:30]
     asd_settings.f_detents_eff = app_conf.F_DETENTS[0:31]
     spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS[0:8]
     spec_settings.figsize = (12, 6)
     qtsf_settings.figsize = (12, 7)
     load_strain = load_low_rate_strain
 else:
-    f_detents_eff = app_conf.F_DETENTS[0:38]
+    filtered_settings.f_detents_eff = app_conf.F_DETENTS[0:38]
     asd_settings.f_detents_eff = app_conf.F_DETENTS
     spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS
     spec_settings.figsize = (12, 7)
     qtsf_settings.figsize = (12, 8)
     load_strain = load_high_rate_strain
 
-f_initial_range = (f_detents_eff[1], f_detents_eff[28])
+filtered_settings.initial_f_range = (
+    filtered_settings.f_detents_eff[1],
+    filtered_settings.f_detents_eff[28]
+)
 asd_settings.initial_f_range = (
     asd_settings.f_detents_eff[1],
     asd_settings.f_detents_eff[-1]
@@ -525,6 +530,8 @@ calib_caveat = (
     f'Caution: Strain data below {calib_freq_low} Hz from'
     f" {interferometer} aren't calibrated."
 )
+filtered_settings.calib_freq_low = calib_freq_low
+filtered_settings.calib_caveat = calib_caveat
 asd_settings.calib_freq_low = calib_freq_low
 asd_settings.calib_caveat = calib_caveat
 
@@ -535,6 +542,10 @@ st.sidebar.caption(
 )
 
 # ... filtered-plot form:
+
+filtered_gram.configure(app_conf, appearance, overrides)
+filtered_plotter = filtered_gram.FilteredData(filtered_settings)
+
 with st.sidebar.form('plot_how'):
     # Default here is "Don't".
     do_plot_txt = st.selectbox(
@@ -545,20 +556,7 @@ with st.sidebar.form('plot_how'):
     do_plot = app_conf.YORN[do_plot_txt]
 
     st.markdown('### ...filter and plot filtered data:')
-
-    f_range = st.select_slider(
-        '**Bandpass limits [Hz]:**',
-        f_detents_eff,
-        value=f_initial_range
-    )
-    whiten_plot = st.checkbox(
-        r'\- whiten before filtering',
-        value=True
-    )
-    filtered_vline_enabled = st.checkbox(
-        r'\- highlight t0',
-        value=True
-    )
+    filtered_plotter.solicit_choices()
 
     plot_submitted = st.form_submit_button(
         'Apply filtered plot settings',
@@ -692,12 +690,17 @@ else:
     t_epoch = floor(t0)
     t_major = min(1, t_width / 8)
 
+# One extra sample will ensure that the rightmost major tick will
+# be drawn when t0 is a sufficiently round number (in binary)...
+t_plotedge = t_plotend + 1./sample_rate
+
 data_settings = AttributeHolder()
 data_settings.t0 = t0
 data_settings.t0_iso = t0_iso
 data_settings.t_width = t_width
 data_settings.t_plotstart = t_plotstart
 data_settings.t_plotend = t_plotend
+data_settings.t_plotedge = t_plotedge
 data_settings.t_epoch = t_epoch
 data_settings.t_major = t_major
 
@@ -767,20 +770,14 @@ loaded_msg = \
 load_strain_state.markdown(loaded_msg)
 st.write('Cache block start:', t_start, ', end:', t_end,
          '; plot start:', t_plotstart, ', end:', t_plotend)
-strain_precropped = strain.crop(
-    t_plotstart - app_conf.T_PAD,
-    t_plotend + app_conf.T_PAD
-)
 
-# One extra sample ensures that the rightmost major tick will be drawn when
-# t0 is a sufficiently round number (in binary)...
-t_plotedge = t_plotend + 1./sample_rate
 strain_cropped = strain.crop(
     t_plotstart,
     t_plotedge
 )
 
-# ... *except* when that one sample would fall into the next data gap.
+# When the one extra sample at the edge would fall into the next data gap,
+# we'll need to retreat.  (The subtle tell-tale will be a missing tick.)
 if np.isnan(strain_cropped.value[-1]):
     strain_cropped = strain.crop(
         t_plotstart,
@@ -887,76 +884,14 @@ st.divider()
 
 if do_plot:
     st.subheader('Filtered data')
-    try:
-        if f_range[0] >= f_range[1]:
-            # (Constructing the filter would raise a ValueError.)
-            raise ZeroFrequencyRangeError()
 
-        if whiten_plot:
-            filtered = strain_precropped.whiten(
-            ).bandpass(
-                f_range[0],
-                f_range[1]
-            )
-            wh_note = ', whitened'
-        else:
-            filtered = strain_precropped.bandpass(
-                f_range[0],
-                f_range[1]
-            )
-            wh_note = ''
-
-        filtered_cropped = filtered.crop(
-            t_plotstart,
-            t_plotedge
-        )
-
-        # Filtering will have failed when we are too close to a data gap,
-        # and it fails silently - there's no exception we could catch.
-        # But there's a tell-tale in the data:
-        if np.isnan(filtered.max()):
-            raise DataGapError()
-
-        filtered_title = (
-            f'''{interferometer}, around {t0} ({t0_iso} UTC){wh_note},'''
-            f''' band pass: {f_range[0]} - {f_range[1]} Hz'''
-        )
-
-        with _lock:
-            figure_filtered = filtered_cropped.plot(
-                color=appearance.PRIMARY_COLOR
-            )
-            ax = figure_filtered.gca()
-            ax.set_title(
-                filtered_title,
-                loc='right',
-                fontsize=appearance.FILTERED_TITLE_FONTSIZE
-            )
-            if whiten_plot:
-                ax.set_ylabel('arbitrary units')
-            else:
-                ax.set_ylabel('dimensionless')
-            ax.set_xscale('seconds', epoch=t_epoch)
-            if t_width >= 1.0:
-                ax.xaxis.set_major_locator(MultipleLocator(base=t_major))
-            if t_width <= 4.0:
-                ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
-            if filtered_vline_enabled:
-                ax.axvline(t0, color=appearance.VLINE_COLOR, linestyle='--')
-            st.pyplot(figure_filtered, clear_figure=True)
-
-        if f_range[0] < calib_freq_low:
-            st.warning(calib_caveat)
-        else:
-            pass
-    except DataGapError:
-        st.error(
-            '''t0 is too close to (or inside) a data gap, unable to
-            filter the data. Please try a shorter time interval or
-            try changing the requested timestamp.'''
-        )
-    except ZeroFrequencyRangeError:
-        st.warning('Please make the frequency range wider.')
+    # This will bail out with an error message when confronted with a
+    # requested frequency range whose lower and upper bounds coincide.
+    filtered_plotter.plot_filtered_data(
+        data,
+        data_descriptor,
+        data_settings
+    )
 
 else:
     st.write('(Skipping filtered data plotting.)')
