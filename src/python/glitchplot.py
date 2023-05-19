@@ -57,16 +57,15 @@ import tracemalloc
 # pylint: disable=E0401
 import streamlit as st
 import numpy as np
-from gwpy.timeseries import TimeSeries, StateTimeSeries
+# We'll be implicitly working with TimeSeries and StateTimeSeries
+# from gwpy.timeseries, but it's sufficient to have our workhorse
+# modules import these.
 import matplotlib as mpl
-from matplotlib.backends.backend_agg import RendererAgg
-from matplotlib.ticker import LogFormatter, NullFormatter, \
-    AutoMinorLocator, MultipleLocator, NullLocator
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from gwogv_util.collections import AttributeHolder, DataDescriptor
 from gwogv_util.exception import DataGapError
 from gwogv_util.time import gps_to_isot, iso_to_gps, any_to_gps, now_as_isot
+import gwogv_util.data_loader as loader
 import gwogv_util.available_data as available_gram
 import gwogv_util.raw_data as raw_gram
 import gwogv_util.filtered_data as filtered_gram
@@ -82,7 +81,6 @@ import gwogv_util.plotutil.customcm
 # Thread-safe plotting:
 # The backend choice here is redundant - Streamlit already does this.
 mpl.use("agg")
-_lock = RendererAgg.lock
 
 # ---------------------------------------------------------------------------
 # -- Commandline override switches --
@@ -114,66 +112,7 @@ app_conf = AttributeHolder()
 app_conf.LOW_RATE, app_conf.HIGH_RATE = (4096, 16384)
 
 # ---------------------------------------------------------------------------
-# -- Helper methods: cacheable data...
-# ---------------------------------------------------------------------------
-
-def _load_strain_impl(data_descriptor):
-    """Workhorse wrapper around TimeSeries.fetch_open_data()"""
-    # pylint: disable=redefined-outer-name
-    # Work around bug #1612 in GWpy:  fetch_open_data() would fail if t_end
-    # falls on  (or a fraction of a second before)  the boundary between
-    # two successive 4096 s chunks.  Asking for a fraction of a second
-    # *more* just past this boundary avoids the issue.
-    t_end_fudged = data_descriptor.t_end + 1/64.
-    # (Is GWpy's URL caching thread-safe?  I certainly don't dare to turn
-    # it on for multi-user operation in the cloud, without having control
-    # over cache entry lifetimes.)
-    # The other question is whether it's actually useful here...
-    strain = TimeSeries.fetch_open_data(
-        data_descriptor.interferometer,
-        data_descriptor.t_start,
-        t_end_fudged,
-        sample_rate=data_descriptor.sample_rate,
-        cache=overrides.url_caching)
-    # Extract some information about the available vs. unavailable data
-    # in the vicinity, based on our own inspection of what we got from GWOSC
-    # (rather than expending yet more time to fetch various metadata):
-    intervals = \
-        int((data_descriptor.t_end - data_descriptor.t_start) * 8) - 1
-    flag = StateTimeSeries(
-        [
-            not np.isnan(
-                strain.value_at(data_descriptor.t_start + i/8. + 1/16.)
-            )
-            for i in range(intervals)
-        ],
-        sample_rate=8,
-        epoch=data_descriptor.t_start
-    ).to_dqflag(round=False)
-    return (strain, flag)
-
-# The load_strain() indirection below will branch to one or the other
-# wrapper, because we want separately sized caches for low and high
-# sample rate data.
-# (With our time interval padding, caching 128 s at the low sample rate
-# amounts to a cache usage of roughly 20 MiB, plus some internal overhead,
-# and a high rate cache item to four times as much.)
-# For local use where more than 1 GiB of RAM is available, we may use wider
-# cache blocks  (typically 512 s at the low sample rate)  when requested.
-@st.cache_data(max_entries=16 if overrides.large_caches else 8)
-def load_low_rate_strain(data_descriptor):
-    """Cacheable wrapper around low-sample-rate data fetching"""
-    # pylint: disable=redefined-outer-name
-    return _load_strain_impl(data_descriptor)
-
-@st.cache_data(max_entries=8 if overrides.large_caches else 3)
-def load_high_rate_strain(data_descriptor):
-    """Cacheable wrapper around high-sample-rate data fetching"""
-    # pylint: disable=redefined-outer-name
-    return _load_strain_impl(data_descriptor)
-
-# ---------------------------------------------------------------------------
-# ...memory profiling...
+# -- Helper methods:  Memory profiling...
 # ---------------------------------------------------------------------------
 
 def print_mem_profile(tops = 8) -> None:
@@ -364,6 +303,7 @@ app_conf.CHUNK_SIZE = 4096 # only used for informative messages
 app_conf.YORN = {"Don't...": False, 'Do...': True}
 app_conf.YORN_CHOICES = list(app_conf.YORN)
 
+# Stops on the log frequency scale, spaced at powers of 2^(1/4):
 # Usable frequencies for filtering depend on the sample rate.
 # Thus the following will be sliced down to size as appropriate - we need
 # to stay well below the Nyquist limit in order for the filter to be built
@@ -424,7 +364,7 @@ app_conf.Q_VALUES = (5.66, 8, 11.3, 16, 22.6, 32, 45.3, 64)
 app_conf.INITIAL_Q = app_conf.Q_VALUES[2]
 
 # Colormap scaling for const-Q transforms:
-app_conf.NORMALIZED_ENERGIES = (6.3, 12.7, 25.5, 51.1, 102.3)
+app_conf.NORMALIZED_ENERGIES = (6.3, 12.7, 25.5, 51.1, 102.3, 204.7)
 app_conf.INITIAL_NE_CUTOFF = app_conf.NORMALIZED_ENERGIES[2]
 
 # Start memory profiling if requested:
@@ -444,6 +384,7 @@ st.sidebar.write(
 
 # ... data-loading form:
 
+loader.configure(app_conf, appearance, overrides)
 available_gram.configure(app_conf, appearance, overrides)
 available_plotter = available_gram.AvailableDataSegments()
 raw_gram.configure(app_conf, appearance, overrides)
@@ -513,14 +454,14 @@ if sample_rate < app_conf.HIGH_RATE:
     spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS[0:8]
     spec_settings.figsize = (12, 6)
     qtsf_settings.figsize = (12, 7)
-    load_strain = load_low_rate_strain
+    load_strain = loader.load_low_rate_strain
 else:
     filtered_settings.f_detents_eff = app_conf.F_DETENTS[0:38]
     asd_settings.f_detents_eff = app_conf.F_DETENTS
     spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS
     spec_settings.figsize = (12, 7)
     qtsf_settings.figsize = (12, 8)
-    load_strain = load_high_rate_strain
+    load_strain = loader.load_high_rate_strain
 
 filtered_settings.initial_f_range = (
     filtered_settings.f_detents_eff[1],
@@ -671,13 +612,12 @@ t_cache_boundaries = (
     if cache_wide_blocks else 32
 )
 
-t_halfwidth = t_width / 2
 t_start = t_cache_boundaries * \
     floor((t0 - app_conf.T_ELBOW_ROOM)/t_cache_boundaries)
 t_end = t_cache_boundaries * \
     ceil((t0 + app_conf.T_ELBOW_ROOM)/t_cache_boundaries)
-t_plotstart = t0 - t_halfwidth
-t_plotend = t0 + t_halfwidth
+t_plotstart = t0 - t_width / 2
+t_plotend = t0 + t_width / 2
 
 data_descriptor = DataDescriptor(
     interferometer=interferometer,
@@ -807,8 +747,9 @@ data.strain = strain
 data.strain_cropped = strain_cropped
 data.flag_data = flag_data
 
-# Explicit garbage collections may well be overkill, but if we want
-# to do them at all, now is a good time - chances are we have just
+# Explicit garbage collections may well be overkill  (and the Streamlit
+# machinery already does them unless explicitly turned off).  If we want
+# to do them ourselves, now is a good time - chances are we have just
 # purged an old strain entry from the cache, and local variables
 # from earlier completed runs have gone out of scope.
 gc.collect()

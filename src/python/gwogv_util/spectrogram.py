@@ -44,6 +44,10 @@ def configure(_app_conf, _appearance, _overrides):
     appearance = _appearance
     large_caches = _overrides.large_caches
 
+# ---------------------------------------------------------------------------
+# -- Helper method (with cacheable results) --
+# ---------------------------------------------------------------------------
+
 # Recomputing a spectrogram or a const-Q transform doesn't take as long
 # as plotting the results does, but caching them may still improve the
 # user experience a little.
@@ -60,6 +64,10 @@ def make_specgram(_strain, data_descriptor,
         overlap=overlap
     ) ** (1/2.)
     return specgram
+
+# ---------------------------------------------------------------------------
+# -- Main class --
+# ---------------------------------------------------------------------------
 
 class Spectrogram:
     """Class for configuring and plotting a spectrogram"""
