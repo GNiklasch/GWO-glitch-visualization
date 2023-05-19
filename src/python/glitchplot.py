@@ -41,7 +41,6 @@ the graphics.
 """
 
 # See note at end about Pylint (as a GitHub workflow).
-# pylint: disable=C0103,C0209
 
 # ---------------------------------------------------------------------------
 # -- Imports and matplotlib backend sanitizing --
@@ -54,6 +53,8 @@ import argparse
 import gc
 import tracemalloc
 
+# pylint: disable=C0103
+# pylint: disable=C0209
 # pylint: disable=E0401
 import streamlit as st
 import numpy as np
@@ -110,7 +111,6 @@ overrides = parser.parse_args()
 
 app_conf = AttributeHolder()
 
-#pylint: disable=C0103
 app_conf.LOW_RATE, app_conf.HIGH_RATE = (4096, 16384)
 
 # ---------------------------------------------------------------------------
@@ -198,7 +198,6 @@ st.markdown(HIDE_ST_FOOTER, unsafe_allow_html=True)
 
 appearance = AttributeHolder()
 
-#pylint: disable=C0103
 appearance.PRIMARY_COLOR = st.get_option("theme.primaryColor") # '#0F2CA4'
 appearance.VLINE_COLOR = 'orange'
 
