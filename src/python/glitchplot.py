@@ -68,6 +68,7 @@ from gwogv_util.collections import AttributeHolder, DataDescriptor
 from gwogv_util.exception import DataGapError
 from gwogv_util.time import gps_to_isot, iso_to_gps, any_to_gps, now_as_isot
 import gwogv_util.available_data as available_gram
+import gwogv_util.raw_data as raw_gram
 import gwogv_util.filtered_data as filtered_gram
 import gwogv_util.spectrogram as spec_gram
 import gwogv_util.q_transform as qtsf_gram
@@ -445,6 +446,8 @@ st.sidebar.write(
 
 available_gram.configure(app_conf, appearance, overrides)
 available_plotter = available_gram.AvailableDataSegments()
+raw_gram.configure(app_conf, appearance, overrides)
+raw_plotter = raw_gram.RawData()
 
 with st.sidebar.form('load_what'):
 
@@ -485,10 +488,7 @@ with st.sidebar.form('load_what'):
             r'\- use wide cache blocks',
             value=True
         )
-    raw_vline_enabled = st.checkbox(
-        r'\- highlight t0 in the raw data plot',
-        value=True
-    )
+    raw_plotter.solicit_choices()
     sample_rate = st.selectbox(
         '**Sample rate:**',
         app_conf.SAMPLE_RATES
@@ -837,39 +837,13 @@ available_plotter.plot_available_data_segments(
 
 st.subheader('Raw strain data')
 
-# This might find no data to plot when the requested interval falls inside
-# a data gap.  The plot() method would fail silently without raising an
-# exception;  only the funny tick labels would leave the viewer scratching
-# their head.  But there's a slightly obscure tell-tale:
-
 try:
-    if np.isnan(strain_cropped.max().to_value()):
-        raise DataGapError()
-
-    with _lock:
-        figure_raw = strain_cropped.plot(color=appearance.PRIMARY_COLOR)
-
-        raw_title = f'{interferometer}, around {t0} ({t0_iso} UTC), raw'
-        ax = figure_raw.gca()
-        ax.set_title(
-            raw_title,
-            loc='right',
-            fontsize=appearance.RAW_TITLE_FONTSIZE
-        )
-        ax.set_xscale('seconds', epoch=t_epoch)
-        if t_width >= 1.0:
-            ax.xaxis.set_major_locator(MultipleLocator(base=t_major))
-        if t_width <= 4.0:
-            ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
-        ax.set_ylabel('dimensionless')
-        if raw_vline_enabled:
-            ax.axvline(t0, color=appearance.VLINE_COLOR, linestyle='--')
-        st.pyplot(figure_raw, clear_figure=True)
-
+    raw_plotter.plot_raw_data(
+        data,
+        data_descriptor,
+        data_settings
+    )
 except DataGapError:
-    st.error('t0 is too close to or inside a data gap. Please try a shorter'
-             ' time interval, or try changing the requested timestamp.')
-
     emit_footer()
     st.stop()
 

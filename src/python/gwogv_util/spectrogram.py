@@ -26,8 +26,8 @@ from matplotlib.ticker import NullFormatter, \
     AutoMinorLocator, MultipleLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-# We implicitly use gwpy.timeseries.TimeSeries of which the strain object
-# will be an instance.
+# We implicitly use gwpy.timeseries.TimeSeries of which the strain_cropped
+# object will be an instance.
 
 _lock = RendererAgg.lock
 
@@ -112,8 +112,8 @@ class Spectrogram:
         `solicit_choices()` method.
         """
         spec_title = (
-            f'''{data_descriptor.interferometer}, around'''
-            f''' {data_settings.t0} GPS ({data_settings.t0_iso} UTC)'''
+            f'{data_descriptor.interferometer}, around'
+            f' {data_settings.t0} GPS ({data_settings.t0_iso} UTC)'
         )
         spec_stride = min(
             data_settings.t_width / 8,

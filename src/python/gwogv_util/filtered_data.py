@@ -83,9 +83,9 @@ class FilteredData:
         )
         wh_note = ', whitened' if self.whiten_plot else ''
         filtered_title = (
-            f'''{data_descriptor.interferometer}, around'''
-            f''' {data_settings.t0} ({data_settings.t0_iso} UTC){wh_note},'''
-            f''' band pass: {self.f_range[0]} - {self.f_range[1]} Hz'''
+            f'{data_descriptor.interferometer}, around'
+            f' {data_settings.t0} ({data_settings.t0_iso} UTC){wh_note},'
+            f' band pass: {self.f_range[0]} - {self.f_range[1]} Hz'
         )
         filtered_y_label = 'arbitrary units' if self.whiten_plot \
             else 'dimensionless'

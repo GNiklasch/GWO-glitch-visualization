@@ -91,9 +91,9 @@ class ASDSpectrum:
         `solicit_choices()` method.
         """
         asd_title = (
-            f'''{data_descriptor.interferometer},'''
-            f''' during {data_settings.t_width} s around'''
-            f''' {data_settings.t0} GPS ({data_settings.t0_iso} UTC)'''
+            f'{data_descriptor.interferometer},'
+            f' during {data_settings.t_width} s around'
+            f' {data_settings.t0} GPS ({data_settings.t0_iso} UTC)'
         )
         asd_xlabel = (
             f'Frequency [Hz],'

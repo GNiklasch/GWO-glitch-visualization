@@ -169,9 +169,9 @@ class QTransform:
         """
         q_wh_note = ', whitened' if self.whiten_qtsf else ''
         qtsf_title = (
-            f'''{data_descriptor.interferometer}, around'''
-            f''' {data_settings.t0} ({data_settings.t0_iso} UTC),'''
-            f''' Q={self.q0}{q_wh_note}'''
+            f'{data_descriptor.interferometer}, around'
+            f' {data_settings.t0} ({data_settings.t0_iso} UTC),'
+            f' Q={self.q0}{q_wh_note}'
         )
         try:
             q_gram, q_warning = transform_strain(
