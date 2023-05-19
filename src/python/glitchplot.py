@@ -67,6 +67,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from gwogv_util.collections import AttributeHolder, DataDescriptor
 from gwogv_util.exception import DataGapError
 from gwogv_util.time import gps_to_isot, iso_to_gps, any_to_gps, now_as_isot
+import gwogv_util.available_data as available_gram
 import gwogv_util.filtered_data as filtered_gram
 import gwogv_util.spectrogram as spec_gram
 import gwogv_util.q_transform as qtsf_gram
@@ -133,6 +134,9 @@ def _load_strain_impl(data_descriptor):
         t_end_fudged,
         sample_rate=data_descriptor.sample_rate,
         cache=overrides.url_caching)
+    # Extract some information about the available vs. unavailable data
+    # in the vicinity, based on our own inspection of what we got from GWOSC
+    # (rather than expending yet more time to fetch various metadata):
     intervals = \
         int((data_descriptor.t_end - data_descriptor.t_start) * 8) - 1
     flag = StateTimeSeries(
@@ -289,8 +293,10 @@ appearance.COLORMAP_CHOICES = list(appearance.COLORMAPS)
 # ...figure and font sizes...
 # ---------------------------------------------------------------------------
 
+appearance.AVAIL_FIGSIZE = (12, 0.6)
 appearance.ASD_FIGSIZE = (10, 8)
 
+appearance.AVAIL_TITLE_FONTSIZE = 14
 appearance.RAW_TITLE_FONTSIZE = 14
 appearance.FILTERED_TITLE_FONTSIZE = 14
 appearance.ASD_TITLE_FONTSIZE = 14
@@ -436,6 +442,10 @@ st.sidebar.write(
 )
 
 # ... data-loading form:
+
+available_gram.configure(app_conf, appearance, overrides)
+available_plotter = available_gram.AvailableDataSegments()
+
 with st.sidebar.form('load_what'):
 
     if not overrides.silence_notices and \
@@ -795,6 +805,7 @@ if np.isnan(strain_cropped.value[-1]):
 data = AttributeHolder()
 data.strain = strain
 data.strain_cropped = strain_cropped
+data.flag_data = flag_data
 
 # Explicit garbage collections may well be overkill, but if we want
 # to do them at all, now is a good time - chances are we have just
@@ -808,11 +819,23 @@ if overrides.mem_profiling:
     print(gc.get_stats())
     print_mem_profile(6)
 
-st.subheader('Raw strain data')
+# ---------------------------------------------------------------------------
+# ...available data segments plot...
+# ---------------------------------------------------------------------------
+
+st.markdown('##### Data available for use in the loaded block:')
+
+available_plotter.plot_available_data_segments(
+    data,
+    data_descriptor,
+    data_settings
+)
 
 # ---------------------------------------------------------------------------
 # ...and raw data plot --
 # ---------------------------------------------------------------------------
+
+st.subheader('Raw strain data')
 
 # This might find no data to plot when the requested interval falls inside
 # a data gap.  The plot() method would fail silently without raising an
@@ -846,40 +869,6 @@ try:
 except DataGapError:
     st.error('t0 is too close to or inside a data gap. Please try a shorter'
              ' time interval, or try changing the requested timestamp.')
-
-    # And provide some information about the available vs. unavailable data
-    # in the vicinity, based on our own inspection of what we got from GWOSC
-    # (rather than expending yet more time to fetch various metadata):
-    with _lock:
-        figure_flag = flag_data.plot(figsize=(12, 1))
-        ax = figure_flag.gca()
-        ax.set_title(
-            'Available / unavailable data vs. requested interval:',
-            fontsize=appearance.RAW_TITLE_FONTSIZE
-        )
-        ax.set_xscale('seconds', epoch=floor(t0))
-        if t_end - t_start == 128:
-            # Major ticks appear every 15 seconds, subdivide accordingly:
-            ax.xaxis.set_minor_locator(AutoMinorLocator(n=3))
-        else:
-            # The default subdivisions into 5 or 4 are fine for wide cache
-            # blocks and for 96 s blocks.
-            pass
-        ax.yaxis.set_major_formatter(NullFormatter())
-        ax.yaxis.set_major_locator(NullLocator())
-        # Always highlight t0 in *this* diagram:
-        ax.axvline(t0, color=appearance.VLINE_COLOR, linestyle='--')
-        ax.axvline(
-            t_plotstart,
-            color=appearance.PRIMARY_COLOR,
-            linestyle='-.'
-        )
-        ax.axvline(
-            t_plotend,
-            color=appearance.PRIMARY_COLOR,
-            linestyle='-.'
-        )
-        st.pyplot(figure_flag, clear_figure=True)
 
     emit_footer()
     st.stop()
