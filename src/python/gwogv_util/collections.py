@@ -20,6 +20,8 @@
 
 """Classes encapsulating collections of attributes"""
 
+# pylint: disable=R0902,R0903
+
 from collections import namedtuple
 
 class AttributeHolder:
@@ -43,5 +45,3 @@ DataDescriptor.__doc__ = \
     This provides a hashable, immutable tuple whose fields are accessible
     through attribute references.
     """
-
-# pylint: disable=R0902, R0903

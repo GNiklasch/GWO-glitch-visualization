@@ -20,6 +20,7 @@
 
 """Submodule for loading a TimeSeries of strain data from GWOSC"""
 
+# pylint: disable=C0103,W0601,W0612,W0621,R0801
 # pylint: disable=E0401
 import streamlit as st
 import numpy as np
@@ -99,5 +100,3 @@ def load_high_rate_strain(data_descriptor):
     """Cacheable wrapper around high-sample-rate data fetching"""
     # pylint: disable=redefined-outer-name
     return _load_strain_impl(data_descriptor)
-
-# pylint: disable=C0103,W0601,W0612,W0621,R0801

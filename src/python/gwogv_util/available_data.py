@@ -22,6 +22,7 @@
 
 from math import floor
 
+# pylint: disable=too-few-public-methods,C0103,R0801
 # pylint: disable=E0401
 import streamlit as st
 from matplotlib.backends.backend_agg import RendererAgg
@@ -94,5 +95,3 @@ class AvailableDataSegments:
                 linestyle='-.'
             )
             st.pyplot(figure_flag, clear_figure=True)
-
-# pylint: disable=too-few-public-methods,R0801

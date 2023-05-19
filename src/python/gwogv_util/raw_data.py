@@ -20,6 +20,7 @@
 
 """Submodule for configuring and plotting a filtered TimeSeries"""
 
+# pylint: disable=C0103,R0801,W0201
 # pylint: disable=E0401
 import streamlit as st
 import numpy as np
@@ -116,5 +117,3 @@ class RawData:
                 timestamp.'''
             )
             raise
-
-# pylint: disable=W0201,C0103,R0801

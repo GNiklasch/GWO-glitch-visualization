@@ -22,6 +22,7 @@
 
 from math import ceil
 
+# pylint: disable=C0103,R0801,W0201
 # pylint: disable=E0401
 import streamlit as st
 from matplotlib.backends.backend_agg import RendererAgg
@@ -251,5 +252,3 @@ class QTransform:
             st.warning(q_caveat)
         else:
             pass
-
-# pylint: disable=W0201,C0103,R0801

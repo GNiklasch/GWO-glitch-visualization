@@ -20,6 +20,7 @@
 
 """Submodule for configuring and plotting a spectrogram"""
 
+# pylint: disable=C0103,R0801,W0201
 # pylint: disable=E0401
 import streamlit as st
 from matplotlib.backends.backend_agg import RendererAgg
@@ -175,5 +176,3 @@ class Spectrogram:
                     linestyle='--'
                 )
             st.pyplot(figure_spec, clear_figure=True)
-
-# pylint: disable=W0201,C0103,R0801
