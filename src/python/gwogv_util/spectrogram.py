@@ -29,11 +29,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 # We implicitly use gwpy.timeseries.TimeSeries of which the strain object
 # will be an instance.
 
-# Importing customcm is required since it registers our custom colormap
-# and its reversed form with matplotlib.
-# pylint: disable-next=unused-import
-import gwogv_util.plotutil.customcm
-
 _lock = RendererAgg.lock
 
 large_caches = False
@@ -98,14 +93,10 @@ class Spectrogram:
             value=True
         )
 
-        # Default is our custom Jetstream colormap, which is similar to one
-        # used in the Virgo electronic logs.
-        # Streamlit doesn't allow negative indices counting backward from
-        # the end of the selectbox options...
         spec_colormap_choice = st.selectbox(
             '**Spectrogram colormap:**',
             appearance.COLORMAP_CHOICES,
-            index=len(appearance.COLORMAP_CHOICES)-2
+            index=self.spec_settings.initial_colormap_choice
         )
         self.spec_colormap = appearance.COLORMAPS[spec_colormap_choice]
 

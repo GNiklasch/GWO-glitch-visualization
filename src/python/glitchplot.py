@@ -525,6 +525,14 @@ spec_settings.initial_f_range = (
     spec_settings.f_detents_eff[-1]
 )
 
+# Default for spectrograms is our custom Jetstream colormap, which is similar
+# to one used in the Virgo electronic logs.
+# Streamlit doesn't allow negative indices counting backward from
+# the end of the selectbox options...
+spec_settings.initial_colormap_choice = len(appearance.COLORMAP_CHOICES)-2
+# Default for the Q transform is Viridis (same as Gravity Spy's).
+qtsf_settings.initial_colormap_choice = 0
+
 calib_freq_low = app_conf.calib_freqs_low[interferometer]
 calib_caveat = (
     f'Caution: Strain data below {calib_freq_low} Hz from'
