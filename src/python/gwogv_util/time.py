@@ -20,7 +20,6 @@
 
 """Utilites for GPS / UTC timestamp handling"""
 
-# pylint: disable=R0801
 # pylint: disable=E0401
 import astropy.time as atime
 

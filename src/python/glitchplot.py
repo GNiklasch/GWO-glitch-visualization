@@ -53,7 +53,7 @@ import argparse
 import gc
 import tracemalloc
 
-# pylint: disable=C0209
+# pylint: disable=C0103,C0209
 # pylint: disable=E0401
 import streamlit as st
 import numpy as np
@@ -107,8 +107,6 @@ overrides = parser.parse_args()
 # ---------------------------------------------------------------------------
 # -- Input selectables and related parameters, up front --
 # ---------------------------------------------------------------------------
-
-# pylint: disable=C0103
 
 app_conf = AttributeHolder()
 
