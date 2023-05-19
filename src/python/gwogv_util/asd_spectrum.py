@@ -20,6 +20,7 @@
 
 """Submodule for configuring and plotting amplitude spectral density"""
 
+# pylint: disable=E0401
 import streamlit as st
 import numpy as np
 from matplotlib.backends.backend_agg import RendererAgg
@@ -40,6 +41,7 @@ def configure(_app_conf, _appearance, _overrides):
     expected to be available as attributes of the three objects passed.
     """
     # pylint: disable=unused-argument
+    # pylint: disable-next=W0601
     global app_conf, appearance
     app_conf = _app_conf
     appearance = _appearance
@@ -197,3 +199,5 @@ class ASDSpectrum:
                 extract a spectrum. Try a shorter time interval or try
                 varying the requested timestamp.'''
             )
+
+# pylint: disable=W0201,C0103,R0801

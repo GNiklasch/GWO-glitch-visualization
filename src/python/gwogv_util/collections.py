@@ -34,7 +34,7 @@ DataDescriptor = namedtuple(
         't_start',
         't_end',
         'sample_rate'
-    ]   
+    ]
 )
 
 DataDescriptor.__doc__ = \
@@ -43,3 +43,5 @@ DataDescriptor.__doc__ = \
     This provides a hashable, immutable tuple whose fields are accessible
     through attribute references.
     """
+
+# pylint: disable=R0902, R0903

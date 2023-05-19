@@ -20,6 +20,7 @@
 
 """Submodule for configuring and plotting a filtered TimeSeries"""
 
+# pylint: disable=E0401
 import streamlit as st
 import numpy as np
 from matplotlib.backends.backend_agg import RendererAgg
@@ -39,6 +40,7 @@ def configure(_app_conf, _appearance, _overrides):
     expected to be available as attributes of the three objects passed.
     """
     # pylint: disable=unused-argument
+    # pylint: disable-next=W0601
     global app_conf, appearance
     app_conf = _app_conf
     appearance = _appearance
@@ -151,3 +153,5 @@ class FilteredData:
             )
         except ZeroFrequencyRangeError:
             st.warning('Please make the frequency range wider.')
+
+# pylint: disable=W0201,C0103,R0801

@@ -20,6 +20,7 @@
 
 """Utilites for GPS / UTC timestamp handling"""
 
+# pylint: disable=E0401
 import astropy.time as atime
 
 # ---------------------------------------------------------------------------
@@ -69,6 +70,7 @@ def any_to_gps(val):
 # ---------------------------------------------------------------------------
 
 def now_as_isot():
+    """Convert the current time to an ISO 8601 string."""
     return atime.Time(
         atime.Time.now(),
         scale='utc', format='isot'

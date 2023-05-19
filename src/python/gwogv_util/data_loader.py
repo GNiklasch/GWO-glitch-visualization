@@ -20,6 +20,7 @@
 
 """Submodule for loading a TimeSeries of strain data from GWOSC"""
 
+# pylint: disable=E0401
 import streamlit as st
 import numpy as np
 from gwpy.timeseries import TimeSeries, StateTimeSeries
@@ -33,6 +34,7 @@ def configure(_app_conf, _appearance, _overrides):
     Must be called before instantiating.  Various configurables are
     expected to be available as attributes of the three objects passed.
     """
+    # pylint: disable-next=W0601
     global app_conf, appearance, large_caches
     app_conf = _app_conf
     appearance = _appearance
@@ -97,3 +99,5 @@ def load_high_rate_strain(data_descriptor):
     """Cacheable wrapper around high-sample-rate data fetching"""
     # pylint: disable=redefined-outer-name
     return _load_strain_impl(data_descriptor)
+
+# pylint: disable=C0103,W0601,W0612,W0621,R0801

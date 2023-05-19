@@ -22,6 +22,7 @@
 
 from math import ceil
 
+# pylint: disable=E0401
 import streamlit as st
 from matplotlib.backends.backend_agg import RendererAgg
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator
@@ -40,6 +41,7 @@ def configure(_app_conf, _appearance, _overrides):
     Must be called before instantiating.  Various configurables are
     expected to be available as attributes of the three objects passed.
     """
+    # pylint: disable-next=W0601
     global app_conf, appearance, large_caches
     app_conf = _app_conf
     appearance = _appearance
@@ -238,6 +240,7 @@ class QTransform:
             st.pyplot(figure_qgram, clear_figure=True)
 
         if q_warning > 0:
+            # pylint: disable=C0209
             q_caveat = \
                 '''t0 is close to a data gap, thus the Q-transform could
                 not look{0} beyond the edges of what has been plotted and
@@ -248,3 +251,5 @@ class QTransform:
             st.warning(q_caveat)
         else:
             pass
+
+# pylint: disable=W0201,C0103,R0801

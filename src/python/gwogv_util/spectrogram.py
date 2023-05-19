@@ -20,6 +20,7 @@
 
 """Submodule for configuring and plotting a spectrogram"""
 
+# pylint: disable=E0401
 import streamlit as st
 from matplotlib.backends.backend_agg import RendererAgg
 from matplotlib.ticker import NullFormatter, \
@@ -39,6 +40,7 @@ def configure(_app_conf, _appearance, _overrides):
     Must be called before instantiating.  Various configurables are
     expected to be available as attributes of the three objects passed.
     """
+    # pylint: disable-next=W0601
     global app_conf, appearance, large_caches
     app_conf = _app_conf
     appearance = _appearance
@@ -173,3 +175,5 @@ class Spectrogram:
                     linestyle='--'
                 )
             st.pyplot(figure_spec, clear_figure=True)
+
+# pylint: disable=W0201,C0103,R0801

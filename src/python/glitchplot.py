@@ -64,7 +64,7 @@ import matplotlib as mpl
 
 from gwogv_util.collections import AttributeHolder, DataDescriptor
 from gwogv_util.exception import DataGapError
-from gwogv_util.time import gps_to_isot, iso_to_gps, any_to_gps, now_as_isot
+from gwogv_util.time import gps_to_isot, any_to_gps, now_as_isot
 import gwogv_util.data_loader as loader
 import gwogv_util.available_data as available_gram
 import gwogv_util.raw_data as raw_gram
