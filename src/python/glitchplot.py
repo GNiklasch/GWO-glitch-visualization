@@ -454,7 +454,7 @@ if sample_rate < app_conf.HIGH_RATE:
     asd_settings.f_detents_eff = app_conf.F_DETENTS[0:31]
     spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS[0:8]
     spec_settings.figsize = (12, 6)
-    qtsf_settings.top = 1218 # 1448
+    qtsf_settings.top = 1218 # the largest f plottable at lowest Q
     qtsf_settings.figsize = (12, 7)
     load_strain = loader.load_low_rate_strain
 else:
@@ -462,7 +462,7 @@ else:
     asd_settings.f_detents_eff = app_conf.F_DETENTS
     spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS
     spec_settings.figsize = (12, 7)
-    qtsf_settings.top = 4871 #5793
+    qtsf_settings.top = 4871
     qtsf_settings.figsize = (12, 8)
     load_strain = loader.load_high_rate_strain
 
