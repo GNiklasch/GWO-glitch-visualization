@@ -231,7 +231,7 @@ class QTransform:
             if data_settings.t_width <= 4.0:
                 ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
             ax.set_yscale('log', base=2)
-            ax.set_ylim(bottom=10)
+            ax.set_ylim((10, self.qtsf_settings.top))
             if self.qtsf_vline_enabled:
                 ax.axvline(
                     data_settings.t0,
