@@ -18,7 +18,9 @@
 # along with GWO-glitch-visualization.
 # If not, see <http://www.gnu.org/licenses/>.
 
-"""An interactive utility for plotting raw strain data from GWOSC,
+"""An interactive utility for visualizing public strain data from GWOSC.
+
+It is capable of plotting raw strain time series data,
 whitened and bandpass-filtered views of these time series data,
 spectra showing their amplitude spectral density during a time interval,
 spectrograms showing how the ASD evolves during this interval, and/or
@@ -39,7 +41,6 @@ the graphics.
 """
 
 # See note at end about Pylint (as a GitHub workflow).
-# pylint: disable=C0103, C0209
 
 # ---------------------------------------------------------------------------
 # -- Imports and matplotlib backend sanitizing --
@@ -52,29 +53,34 @@ import argparse
 import gc
 import tracemalloc
 
+# pylint: disable=C0103,C0209
 # pylint: disable=E0401
 import streamlit as st
 import numpy as np
-from gwpy.timeseries import TimeSeries, StateTimeSeries
-import astropy.time as atime
+# We'll be implicitly working with TimeSeries and StateTimeSeries
+# from gwpy.timeseries, but it's sufficient to have our workhorse
+# modules import these.
 import matplotlib as mpl
-from matplotlib.backends.backend_agg import RendererAgg
-from matplotlib.ticker import LogFormatter, NullFormatter, \
-    AutoMinorLocator, MultipleLocator, NullLocator
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-# customizations
-from plotutil.ticker import MyFormatter
+from gwogv_util.collections import AttributeHolder, DataDescriptor
+from gwogv_util.exception import DataGapError
+from gwogv_util.time import gps_to_isot, any_to_gps, now_as_isot
+import gwogv_util.data_loader as loader
+import gwogv_util.available_data as available_gram
+import gwogv_util.raw_data as raw_gram
+import gwogv_util.filtered_data as filtered_gram
+import gwogv_util.spectrogram as spec_gram
+import gwogv_util.q_transform as qtsf_gram
+import gwogv_util.asd_spectrum as asd_gram
 
 # Importing customcm is required since it registers our custom colormap
 # and its reversed form with matplotlib.
 # pylint: disable-next=unused-import
-import plotutil.customcm
+import gwogv_util.plotutil.customcm
 
 # Thread-safe plotting:
 # The backend choice here is redundant - Streamlit already does this.
 mpl.use("agg")
-_lock = RendererAgg.lock
 
 # ---------------------------------------------------------------------------
 # -- Commandline override switches --
@@ -99,204 +105,15 @@ overrides = parser.parse_args()
 # without creating a secrets.toml file, so this would not gain much.)
 
 # ---------------------------------------------------------------------------
-# -- Custom exceptions --
-# ---------------------------------------------------------------------------
-
-class ZeroFrequencyRangeError(ZeroDivisionError):
-    """Runtime exception raised upon detecting a frequency range
-    whose lower and upper limits coincide, which is unsuitable for
-    constructing a band pass filter.
-    """
-    # pylint: disable-next=W0107
-    pass
-
-class DataGapError(ValueError):
-    """Runtime exception raised to communicate that a gap in the
-    available strain data prevents further processing and plotting.
-    """
-    # pylint: disable-next=W0107
-    pass
-
-# ---------------------------------------------------------------------------
 # -- Input selectables and related parameters, up front --
 # ---------------------------------------------------------------------------
 
-LOW_RATE, HIGH_RATE = (4096, 16384)
+app_conf = AttributeHolder()
+
+app_conf.LOW_RATE, app_conf.HIGH_RATE = (4096, 16384)
 
 # ---------------------------------------------------------------------------
-# -- Helper methods: cacheable data...
-# ---------------------------------------------------------------------------
-
-def _load_strain_impl(interferometer, t_start, t_end, sample_rate=LOW_RATE):
-    """Workhorse wrapper around TimeSeries.fetch_open_data()"""
-    # pylint: disable=redefined-outer-name
-    # Work around bug #1612 in GWpy:  fetch_open_data() would fail if t_end
-    # falls on  (or a fraction of a second before)  the boundary between
-    # two successive 4096 s chunks.  Asking for a fraction of a second
-    # *more* just past this boundary avoids the issue.
-    t_end_fudged = t_end + 1/64.
-    # (Is GWpy's URL caching thread-safe?  I certainly don't dare to turn
-    # it on for multi-user operation in the cloud, without having control
-    # over cache entry lifetimes.)
-    # The other question is whether it's actually useful here...
-    strain = TimeSeries.fetch_open_data(interferometer, t_start, t_end_fudged,
-                                        sample_rate=sample_rate,
-                                        cache=overrides.url_caching)
-    intervals = int((t_end - t_start) * 8) - 1
-    flag = StateTimeSeries(
-        [not np.isnan(strain.value_at(t_start + i/8. + 1/16.))
-         for i in range(intervals)],
-        sample_rate=8,
-        epoch=t_start).to_dqflag(round=False)
-    return (strain, flag)
-
-# The load_strain() indirection below will branch to one or the other
-# wrapper, because we want separately sized caches for low and high
-# sample rate data.
-# (With our time interval padding, caching 128 s at the low sample rate
-# amounts to a cache usage of roughly 20 MiB, plus some internal overhead,
-# and a high rate cache item to four times as much.)
-# For local use where more than 1 GiB of RAM is available, we may use wider
-# cache blocks  (typically 512 s at the low sample rate)  when requested.
-@st.cache_data(max_entries=16 if overrides.large_caches else 8)
-def load_low_rate_strain(interferometer, t_start, t_end,
-                         sample_rate=LOW_RATE):
-    """Cacheable wrapper around low-sample-rate data fetching"""
-    # pylint: disable=redefined-outer-name
-    return _load_strain_impl(interferometer, t_start, t_end,
-                            sample_rate=sample_rate)
-
-@st.cache_data(max_entries=8 if overrides.large_caches else 3)
-def load_high_rate_strain(interferometer, t_start, t_end,
-                          sample_rate=HIGH_RATE):
-    """Cacheable wrapper around high-sample-rate data fetching"""
-    # pylint: disable=redefined-outer-name
-    return _load_strain_impl(interferometer, t_start, t_end,
-                            sample_rate=sample_rate)
-
-# Recomputing a spectrogram or a const-Q transform doesn't take as long
-# as plotting the results does, but caching them may still improve the
-# user experience a little.
-# Streamlit can't use the strain as the hash key, but it *can* use what
-# we had used to fetch it - whence the dummy arguments.
-@st.cache_data(max_entries=10 if overrides.large_caches else 4)
-# pylint: disable-next=too-many-arguments, redefined-outer-name
-def make_specgram(_strain, interferometer, t_start, t_end, sample_rate,
-                  t_plotstart, t_plotend, stride, overlap):
-    """Cacheable wrapper around TimeSeries.spectogram()"""
-    # pylint: disable=unused-argument, redefined-outer-name
-    specgram = _strain.spectrogram(stride=stride, overlap=overlap) ** (1/2.)
-    return specgram
-
-@st.cache_data(max_entries=16 if overrides.large_caches else 4)
-# pylint: disable-next=too-many-arguments, redefined-outer-name
-def transform_strain(_strain, interferometer, t_start, t_end, sample_rate,
-                     t_plotstart, t_plotend, t_pad, q_val, whiten):
-    """Cacheable wrapper around TimeSeries.q_transform(), with graceful
-    backoff to reduced padding when we're (too) close to a data gap"""
-    # pylint: disable=unused-argument, redefined-outer-name
-    outseg = (t_plotstart, t_plotend)
-    # Without nailing down logf and fres, q_transform() would default to a
-    # very high value for the number of frequency steps, somehow resulting
-    # in exorbitant memory consumption for the ad-hoc modified colormaps
-    # created during plotting  (on the order of 380 MiB for a single
-    # Q-transform plot at high sample rate!).
-    fres = ceil(max(600, 24 * q_val) *
-                (1 if sample_rate < HIGH_RATE else 1.3))
-    q_warning = 0
-    try:
-        # The q_transform output would be distorted when the available strain
-        # segment is much longer and isn't symmetric around t0:  Above a
-        # certain frequency  (which depends on the padding and on the Q-value)
-        # all features would be displaced to the left.  Pre-cropping the data
-        # prevents this  (and speeds up processing, too).  Pre-cropping too
-        # tightly, however, would result in broader whitening artefacts and
-        # potentially losing output at low frequencies.
-        padding = min(
-            2.5 * t_pad,
-            t_end - t_plotend,
-            t_plotstart - t_start
-        )
-        strain_cropped = _strain.crop(
-            t_plotstart - padding,
-            t_plotend + padding
-        )
-        q_gram = strain_cropped.q_transform(
-            outseg=outseg, qrange=(q_val, q_val),
-            logf = True, fres = fres,
-            whiten=whiten, fduration=t_pad
-        )
-    except ValueError:
-        q_warning = 1
-        try:
-            # ...with less padding:
-            strain_cropped = _strain.crop(
-                t_plotstart - t_pad,
-                t_plotend + t_pad
-            )
-            q_gram = strain_cropped.q_transform(
-                outseg=outseg, qrange=(q_val, q_val),
-                logf = True, fres = fres,
-                whiten=whiten, fduration=t_pad
-            )
-        except ValueError:
-            q_warning = 2
-            # One last try, with no padding:
-            strain_cropped = _strain.crop(t_plotstart, t_plotend)
-            # Here, the default fduration=2 applies.
-            q_gram = strain_cropped.q_transform(
-                outseg=outseg, qrange=(q_val, q_val),
-                logf = True, fres = fres,
-                whiten=whiten
-            )
-            # If this last-ditch attempt fails, the exception is raised up
-            # to our call site.
-    return (q_gram, q_warning)
-
-# ---------------------------------------------------------------------------
-# ...timestamp conversion...
-# ---------------------------------------------------------------------------
-
-# Unlike `datetime`, `astropy` treats leap seconds correctly.
-
-def gps_to_isot(val):
-    """Convert a GPS timestamp to a UTC date/time in ISO 8601 format with
-    a literal 'T' separating date and time."""
-    # pylint: disable-next=redefined-builtin
-    return atime.Time(
-        val=atime.Time(val=val, scale='tai', format='gps'),
-        scale='utc', format='isot'
-    ).to_string()
-
-# pylint: disable-next=redefined-builtin
-def iso_to_gps(val, format='isot'):
-    """Convert a UTC date/time in ISO 8601 format with a literal 'T'
-    separating date and time to a GPS timestamp."""
-    # pylint: disable-next=redefined-builtin
-    return atime.Time(
-        val=atime.Time(val=val, scale='utc', format=format),
-        scale='tai', format='gps'
-    ).to_value('gps')
-
-def any_to_gps(val):
-    """Convert the user intput to a GPS timestamp, accepting either
-    UTC formatted as ISO 8601 date/time with 'T' or space separating
-    time and date, optionally with a trailing 'Z', or text that can be
-    parsed as a floating point number representing a GPS timestamp."""
-    try:
-        t_gps = iso_to_gps(val=val)
-    # pylint: disable-next=broad-exception-caught
-    except Exception:
-        try:
-            # pylint: disable-next=redefined-builtin
-            t_gps = iso_to_gps(val=val, format='iso')
-        # pylint: disable-next=broad-exception-caught
-        except Exception:
-            t_gps = float(val)
-    return t_gps
-
-# ---------------------------------------------------------------------------
-# ...memory profiling...
+# -- Helper methods:  Memory profiling...
 # ---------------------------------------------------------------------------
 
 def print_mem_profile(tops = 8) -> None:
@@ -315,10 +132,6 @@ def print_mem_profile(tops = 8) -> None:
 def emit_footer() -> None:
     """Emit the page footer."""
     st.divider()
-    stamp = atime.Time(
-        atime.Time.now(),
-        scale='utc', format='isot'
-    ).to_string()
     # pylint: disable=anomalous-backslash-in-string
     footer = '''
     View the source code on [GitHub]({0}).\\
@@ -333,7 +146,7 @@ def emit_footer() -> None:
         'https://gwosc.org/data/',
         'https://gwosc.org/',
         'https://streamlit.io/',
-        stamp
+        now_as_isot()
     )
     st.markdown(footer)
     if not overrides.silence_notices:
@@ -382,8 +195,10 @@ st.markdown(HIDE_ST_FOOTER, unsafe_allow_html=True)
 # ...colors and colormaps...
 # ---------------------------------------------------------------------------
 
-PRIMARY_COLOR = st.get_option("theme.primaryColor") # '#0F2CA4'
-VLINE_COLOR = 'orange'
+appearance = AttributeHolder()
+
+appearance.PRIMARY_COLOR = st.get_option("theme.primaryColor") # '#0F2CA4'
+appearance.VLINE_COLOR = 'orange'
 
 # Both of the following are derived from PRIMARY_COLOR and will produce
 # very nearly the same shade when plotted on a white background.  The
@@ -393,10 +208,11 @@ VLINE_COLOR = 'orange'
 # (If one wants the background curve to be faintly visible "through" the
 # foreground one, the transparent color shade could be made slightly lighter
 # and slightly more opaque, interpolating between the current two specs.)
-ASD_LIGHT_COLOR = '#7A89C8'
-ASD_TRANSPARENT_COLOR = PRIMARY_COLOR + '96' # '#0F2CA496'
+appearance.ASD_LIGHT_COLOR = '#7A89C8'
+appearance.ASD_TRANSPARENT_COLOR = \
+    appearance.PRIMARY_COLOR + '96' # '#0F2CA496'
 
-COLORMAPS = {
+appearance.COLORMAPS = {
     'Viridis (Gravity Spy)': 'viridis',
     'Viridis reversed': 'viridis_r',
     'Reds': 'Reds',
@@ -412,21 +228,23 @@ COLORMAPS = {
     'Jetstream': 'jetstream',
     'Jetstream reversed': 'jetstream_r'
 }
-COLORMAP_CHOICES = list(COLORMAPS)
+appearance.COLORMAP_CHOICES = list(appearance.COLORMAPS)
 
 # ---------------------------------------------------------------------------
 # ...figure and font sizes...
 # ---------------------------------------------------------------------------
 
-ASD_FIGSIZE = (10, 8)
+appearance.AVAIL_FIGSIZE = (12, 0.6)
+appearance.ASD_FIGSIZE = (10, 8)
 
-RAW_TITLE_FONTSIZE = 14
-FILTERED_TITLE_FONTSIZE = 14
-ASD_TITLE_FONTSIZE = 14
-ASD_LABEL_FONTSIZE = 13
-ASD_LABEL_LABELSIZE = 11
-SPEC_TITLE_FONTSIZE = 17
-QTSF_TITLE_FONTSIZE = 17
+appearance.AVAIL_TITLE_FONTSIZE = 14
+appearance.RAW_TITLE_FONTSIZE = 14
+appearance.FILTERED_TITLE_FONTSIZE = 14
+appearance.ASD_TITLE_FONTSIZE = 14
+appearance.ASD_LABEL_FONTSIZE = 13
+appearance.ASD_LABEL_LABELSIZE = 11
+appearance.SPEC_TITLE_FONTSIZE = 17
+appearance.QTSF_TITLE_FONTSIZE = 17
 
 # ---------------------------------------------------------------------------
 # ...and the (in-page) title:
@@ -439,12 +257,12 @@ st.title('Plot glitches from GWOSC-sourced strain data')
 # ---------------------------------------------------------------------------
 
 # Strictly speaking the following is valid for O3 only...
-calib_freqs_low = {'H1': 10, 'L1': 10, 'V1': 20}
-interferometers = list(calib_freqs_low)
+app_conf.calib_freqs_low = {'H1': 10, 'L1': 10, 'V1': 20}
+app_conf.interferometers = list(app_conf.calib_freqs_low)
 
 # The L1 view of GW170817, with the almighty ETMY saturation / ESD overflow
 # glitch a second earlier, is well known as the Gravity Spy logo.
-INITIAL_T0_GPS = '1187008882.4'
+app_conf.INITIAL_T0_GPS = '1187008882.4'
 
 # Loading time is dominated by having to wade through either one or two
 # files of 4096 seconds of strain data.  Asking for a generously sized
@@ -464,17 +282,17 @@ INITIAL_T0_GPS = '1187008882.4'
 # Also, we'll be able to extract a "background" spectrum from 64s worth of
 # data cropped at time offsets up to ±12 seconds  (useless as this is when
 # the half width is larger than the offset)  without falling off the ends.
-T_ELBOW_ROOM = 46.7
+app_conf.T_ELBOW_ROOM = 46.7
 
 # Filtering will have to get by with less padding beyond the half width:
-T_PAD = 8.0
+app_conf.T_PAD = 8.0
 
-T_WIDTHS = (0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8, 16, 32, 64)
-INITIAL_WIDTH = T_WIDTHS[5]
+app_conf.T_WIDTHS = (0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8, 16, 32, 64)
+app_conf.INITIAL_WIDTH = app_conf.T_WIDTHS[5]
 
-SAMPLE_RATES = (LOW_RATE, HIGH_RATE)
+app_conf.SAMPLE_RATES = (app_conf.LOW_RATE, app_conf.HIGH_RATE)
 
-CHUNK_SIZE = 4096 # only used for informative messages
+app_conf.CHUNK_SIZE = 4096 # only used for informative messages
 
 # It might be nice to have a red "Don't...." and green "Do...", but Streamlit
 # selectbox options do not support markdown/colors.  Moreover, selecting any
@@ -483,9 +301,10 @@ CHUNK_SIZE = 4096 # only used for informative messages
 # is not practical.
 # (Radio button options don't support markdown either;  and radio buttons
 # would take up too much space, as well as breaking the flow of the sentence.)
-YORN = {"Don't...": False, 'Do...': True}
-YORN_CHOICES = list(YORN)
+app_conf.YORN = {"Don't...": False, 'Do...': True}
+app_conf.YORN_CHOICES = list(app_conf.YORN)
 
+# Stops on the log frequency scale, spaced at powers of 2^(1/4):
 # Usable frequencies for filtering depend on the sample rate.
 # Thus the following will be sliced down to size as appropriate - we need
 # to stay well below the Nyquist limit in order for the filter to be built
@@ -496,7 +315,7 @@ YORN_CHOICES = list(YORN)
 # Data below calib_freqs_low[interferometer] are also unreliable.
 # (H1 in particular switched to much more aggressive VLF highpass filtering
 # during O3b on 2020-01-14.)
-F_DETENTS = (
+app_conf.F_DETENTS = (
     8, 9.51, 11.3, 13.5, 16, 19.0, 22.6, 26.9,
     32, 38.3, 45.3, 53.8, 64, 76.1, 90.5, 108,
     128, 152, 181, 215, 256, 304, 362, 431,
@@ -505,38 +324,49 @@ F_DETENTS = (
 )
 
 # ASD spectra and spectrograms share some of their input choices.
-ASD_Y_DECADES = {
+app_conf.ASD_Y_DECADES = {
     -27: 1.E-27, -26: 1.E-26, -25: 1.E-25, -24: 1.E-24,
     -23: 1.E-23, -22: 1.E-22, -21: 1.E-21, -20: 1.E-20,
     -19: 1.E-19, -18: 1.E-18, -17: 1.E-17, -16: 1.E-16
 }
-ASD_Y_DETENTS = list(ASD_Y_DECADES)
-ASD_OFFSETS = {
+app_conf.ASD_Y_DETENTS = list(app_conf.ASD_Y_DECADES)
+app_conf.ASD_OFFSETS = {
     '-12': -12, '-6': -6, '-3': -3, '-1.5': -1.5,
     'None': 0,
     '1.5': 1.5, '3': 3, '6': 6, '12': 12
 }
-ASD_OFFSET_DETENTS = list(ASD_OFFSETS)
-ASD_INITIAL_OFFSET = ASD_OFFSET_DETENTS[4] # 'None'
-ASD_INITIAL_Y = (ASD_Y_DETENTS[1], ASD_Y_DETENTS[-4])
-SPEC_INITIAL_V = (ASD_Y_DETENTS[1], ASD_Y_DETENTS[-4])
+app_conf.ASD_OFFSET_DETENTS = list(app_conf.ASD_OFFSETS)
+app_conf.ASD_INITIAL_OFFSET = app_conf.ASD_OFFSET_DETENTS[4] # 'None'
+app_conf.ASD_INITIAL_Y = (
+    app_conf.ASD_Y_DETENTS[1],
+    app_conf.ASD_Y_DETENTS[-4]
+)
+
+app_conf.SPEC_V_DECADES = app_conf.ASD_Y_DECADES
+app_conf.SPEC_V_DETENTS = list(app_conf.SPEC_V_DECADES)
+app_conf.SPEC_INITIAL_V = (
+    app_conf.SPEC_V_DETENTS[1],
+    app_conf.SPEC_V_DETENTS[-4]
+)
 
 # Spectrograms will have 8 Hz resolution except for very short widths where
 # the stride will have to be adjusted down.  4 Hz (0.25 s stride) is too fine;
 # the LIGO fundamental violin modes would then get lost under the horizontal
 # grid lines.
-BASIC_SPEC_STRIDE = 0.125
+app_conf.BASIC_SPEC_STRIDE = 0.125
 
 # View limit frequencies for spectrograms:
-SPEC_F_DETENTS = (10, 22.6, 45.3, 90.5, 181, 362, 724, 1448, 2896, 5793)
+app_conf.SPEC_F_DETENTS = (
+    10, 22.6, 45.3, 90.5, 181, 362, 724, 1448, 2896, 5793
+)
 
 # Q-values spaced at powers of sqrt(2):
-Q_VALUES = (5.66, 8, 11.3, 16, 22.6, 32, 45.3, 64)
-INITIAL_Q = Q_VALUES[2]
+app_conf.Q_VALUES = (5.66, 8, 11.3, 16, 22.6, 32, 45.3, 64)
+app_conf.INITIAL_Q = app_conf.Q_VALUES[2]
 
 # Colormap scaling for const-Q transforms:
-NORMALIZED_ENERGIES = (6.3, 12.7, 25.5, 51.1, 102.3)
-INITIAL_NE_CUTOFF = NORMALIZED_ENERGIES[2]
+app_conf.NORMALIZED_ENERGIES = (6.3, 12.7, 25.5, 51.1, 102.3, 204.7)
+app_conf.INITIAL_NE_CUTOFF = app_conf.NORMALIZED_ENERGIES[2]
 
 # Start memory profiling if requested:
 if overrides.mem_profiling:
@@ -554,6 +384,13 @@ st.sidebar.write(
 )
 
 # ... data-loading form:
+
+loader.configure(app_conf, appearance, overrides)
+available_gram.configure(app_conf, appearance, overrides)
+available_plotter = available_gram.AvailableDataSegments()
+raw_gram.configure(app_conf, appearance, overrides)
+raw_plotter = raw_gram.RawData()
+
 with st.sidebar.form('load_what'):
 
     if not overrides.silence_notices and \
@@ -575,17 +412,17 @@ with st.sidebar.form('load_what'):
 
     interferometer = st.selectbox(
         '**From interferometer:**',
-        interferometers,
+        app_conf.interferometers,
         index=1 # default L1
     )
     t_width = st.select_slider(
         '**load enough to visualize**',
-        T_WIDTHS, value=INITIAL_WIDTH
+        app_conf.T_WIDTHS, value=app_conf.INITIAL_WIDTH
     )
     t0_text = st.text_input(
         '''**seconds of strain data around GPS
-        (or ISO 8601-formatted UTC) timestamp:**''',
-        INITIAL_T0_GPS
+        (or ISO 8601-formatted UTC) timestamp t0:**''',
+        app_conf.INITIAL_T0_GPS
     )
     cache_wide_blocks = False
     if overrides.wide_cache_blocks:
@@ -593,9 +430,10 @@ with st.sidebar.form('load_what'):
             r'\- use wide cache blocks',
             value=True
         )
+    raw_plotter.solicit_choices()
     sample_rate = st.selectbox(
         '**Sample rate:**',
-        SAMPLE_RATES
+        app_conf.SAMPLE_RATES
     )
 
     load_submitted = st.form_submit_button(
@@ -605,28 +443,57 @@ with st.sidebar.form('load_what'):
     )
 
 # Preprocess parameters which depend on the sample rate and/or interferometer:
-if sample_rate < HIGH_RATE:
-    f_detents_eff = F_DETENTS[0:30]
-    asd_f_detents_eff = F_DETENTS[0:31]
-    spec_f_detents_eff = SPEC_F_DETENTS[0:8]
-    spec_figsize = (12, 6)
-    qtsf_figsize = (12, 7)
-    load_strain = load_low_rate_strain
+
+filtered_settings = AttributeHolder()
+asd_settings = AttributeHolder()
+spec_settings = AttributeHolder()
+qtsf_settings = AttributeHolder()
+
+if sample_rate < app_conf.HIGH_RATE:
+    filtered_settings.f_detents_eff = app_conf.F_DETENTS[0:30]
+    asd_settings.f_detents_eff = app_conf.F_DETENTS[0:31]
+    spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS[0:8]
+    spec_settings.figsize = (12, 6)
+    qtsf_settings.figsize = (12, 7)
+    load_strain = loader.load_low_rate_strain
 else:
-    f_detents_eff = F_DETENTS[0:38]
-    asd_f_detents_eff = F_DETENTS
-    spec_f_detents_eff = SPEC_F_DETENTS
-    spec_figsize = (12, 7)
-    qtsf_figsize = (12, 8)
-    load_strain = load_high_rate_strain
+    filtered_settings.f_detents_eff = app_conf.F_DETENTS[0:38]
+    asd_settings.f_detents_eff = app_conf.F_DETENTS
+    spec_settings.f_detents_eff = app_conf.SPEC_F_DETENTS
+    spec_settings.figsize = (12, 7)
+    qtsf_settings.figsize = (12, 8)
+    load_strain = loader.load_high_rate_strain
 
-f_initial_range = (f_detents_eff[1], f_detents_eff[28])
-asd_initial_f_range = (asd_f_detents_eff[1], asd_f_detents_eff[-1])
-spec_initial_f_range = (spec_f_detents_eff[0], spec_f_detents_eff[-1])
+filtered_settings.initial_f_range = (
+    filtered_settings.f_detents_eff[1],
+    filtered_settings.f_detents_eff[28]
+)
+asd_settings.initial_f_range = (
+    asd_settings.f_detents_eff[1],
+    asd_settings.f_detents_eff[-1]
+)
+spec_settings.initial_f_range = (
+    spec_settings.f_detents_eff[0],
+    spec_settings.f_detents_eff[-1]
+)
 
-calib_freq_low = calib_freqs_low[interferometer]
-calib_caveat = f'Caution: Strain data below {calib_freq_low} Hz from' + \
+# Default for spectrograms is our custom Jetstream colormap, which is similar
+# to one used in the Virgo electronic logs.
+# Streamlit doesn't allow negative indices counting backward from
+# the end of the selectbox options...
+spec_settings.initial_colormap_choice = len(appearance.COLORMAP_CHOICES)-2
+# Default for the Q transform is Viridis (same as Gravity Spy's).
+qtsf_settings.initial_colormap_choice = 0
+
+calib_freq_low = app_conf.calib_freqs_low[interferometer]
+calib_caveat = (
+    f'Caution: Strain data below {calib_freq_low} Hz from'
     f" {interferometer} aren't calibrated."
+)
+filtered_settings.calib_freq_low = calib_freq_low
+filtered_settings.calib_caveat = calib_caveat
+asd_settings.calib_freq_low = calib_freq_low
+asd_settings.calib_caveat = calib_caveat
 
 # pylint: disable-next=implicit-str-concat
 st.sidebar.caption(
@@ -635,30 +502,21 @@ st.sidebar.caption(
 )
 
 # ... filtered-plot form:
+
+filtered_gram.configure(app_conf, appearance, overrides)
+filtered_plotter = filtered_gram.FilteredData(filtered_settings)
+
 with st.sidebar.form('plot_how'):
     # Default here is "Don't".
     do_plot_txt = st.selectbox(
         'Shall we plot?',
-        YORN_CHOICES,
+        app_conf.YORN_CHOICES,
         label_visibility = 'collapsed'
     )
-    do_plot = YORN[do_plot_txt]
+    do_plot = app_conf.YORN[do_plot_txt]
 
     st.markdown('### ...filter and plot filtered data:')
-
-    f_range = st.select_slider(
-        '**Bandpass limits [Hz]:**',
-        f_detents_eff,
-        value=f_initial_range
-    )
-    whiten_plot = st.checkbox(
-        r'\- whiten before filtering',
-        value=True
-    )
-    filtered_vline_enabled = st.checkbox(
-        r'\- highlight t0 in raw and filtered data plots',
-        value=True
-    )
+    filtered_plotter.solicit_choices()
 
     plot_submitted = st.form_submit_button(
         'Apply filtered plot settings',
@@ -667,38 +525,20 @@ with st.sidebar.form('plot_how'):
     )
 
 # ... ASD spectrum form:
+
+asd_gram.configure(app_conf, appearance, overrides)
+asd_plotter = asd_gram.ASDSpectrum(asd_settings)
+
 with st.sidebar.form('asd_how'):
     do_show_asd_txt = st.selectbox(
         'Shall we show ASD?',
-        YORN_CHOICES, # Default is "Don't".
+        app_conf.YORN_CHOICES, # Default is "Don't".
         label_visibility = 'collapsed'
     )
-    do_show_asd = YORN[do_show_asd_txt]
+    do_show_asd = app_conf.YORN[do_show_asd_txt]
 
     st.markdown('### ...show amplitude spectral density as a spectrum:')
-
-    asd_f_range = st.select_slider(
-        '**Spectrum frequency range [Hz]:**',
-        asd_f_detents_eff,
-        value=asd_initial_f_range
-    )
-    asd_y_low, asd_y_high = st.select_slider(
-        '**Spectrum ASD range, decades:**',
-        ASD_Y_DETENTS,
-        value=ASD_INITIAL_Y
-    )
-    asd_y_range = (ASD_Y_DECADES[asd_y_low], ASD_Y_DECADES[asd_y_high])
-    asd_offset_choice = st.select_slider(
-        '''**Optional background ASD spectrum,
-        from [s] earlier or later:**''',
-        ASD_OFFSET_DETENTS,
-        value=ASD_INITIAL_OFFSET
-    )
-    asd_offset = ASD_OFFSETS[asd_offset_choice]
-    # Just in case someone wants to extract a light-shaded plot:
-    asd_lighten = st.checkbox(
-        r'\- swap shades: light foreground (and heavy background)'
-    )
+    asd_plotter.solicit_choices()
 
     asd_submitted = st.form_submit_button(
         'Apply spectrum settings',
@@ -707,48 +547,20 @@ with st.sidebar.form('asd_how'):
     )
 
 # ... Spectrogram form:
+
+spec_gram.configure(app_conf, appearance, overrides)
+spec_plotter = spec_gram.Spectrogram(spec_settings)
+
 with st.sidebar.form('spec_how'):
     do_spec_txt = st.selectbox(
         'Shall we spec?',
-        YORN_CHOICES, # Default here is "Don't".
+        app_conf.YORN_CHOICES, # Default here is "Don't".
         label_visibility = 'collapsed'
     )
-    do_spec = YORN[do_spec_txt]
+    do_spec = app_conf.YORN[do_spec_txt]
 
     st.markdown('### ...show a spectrogram:')
-    spec_f_range = st.select_slider(
-        '**Spectrogram frequency range [Hz]:**',
-        spec_f_detents_eff,
-        value=spec_initial_f_range
-    )
-    spec_v_low, spec_v_high = st.select_slider(
-        '**Spectrogram ASD range, decades:**',
-        ASD_Y_DETENTS,
-        value=SPEC_INITIAL_V
-    )
-    spec_v_min, spec_v_max = (
-        ASD_Y_DECADES[spec_v_low],
-        ASD_Y_DECADES[spec_v_high]
-    )
-    spec_grid_enabled = st.checkbox(
-        r'\- enable grid overlay',
-        value=True
-    )
-    spec_vline_enabled = st.checkbox(
-        r'\- highlight t0',
-        value=True
-    )
-
-    # Default is our custom Jetstream colormap, which is similar to one
-    # used in the Virgo electronic logs.
-    # Streamlit doesn't allow negative indices counting backward from
-    # the end of the selectbox options...
-    spec_colormap_choice = st.selectbox(
-        '**Spectrogram colormap:**',
-        COLORMAP_CHOICES,
-        index=len(COLORMAP_CHOICES)-2
-    )
-    spec_colormap = COLORMAPS[spec_colormap_choice]
+    spec_plotter.solicit_choices()
 
     spec_submitted = st.form_submit_button(
         'Apply spectrogram settings',
@@ -757,45 +569,22 @@ with st.sidebar.form('spec_how'):
     )
 
 # ... Q-transform form:
+
+qtsf_gram.configure(app_conf, appearance, overrides)
+qtsf_plotter = qtsf_gram.QTransform(qtsf_settings)
+
 with st.sidebar.form('qtsf_how'):
     do_qtsf_txt = st.selectbox(
         'Shall we qtsf?',
-        YORN_CHOICES,
+        app_conf.YORN_CHOICES,
         label_visibility = 'collapsed',
         index=1 # Default here is 'Do'.
     )
-    do_qtsf = YORN[do_qtsf_txt]
+    do_qtsf = app_conf.YORN[do_qtsf_txt]
 
     st.markdown('### ...render a constant-Q transform:')
+    qtsf_plotter.solicit_choices()
 
-    q0 = st.select_slider(
-        '**Q-value:**',
-        Q_VALUES,
-        value=INITIAL_Q
-    )
-    ne_cutoff = st.select_slider(
-        '**Normalized energy cutoff:**',
-        NORMALIZED_ENERGIES,
-        value=INITIAL_NE_CUTOFF
-    )
-    whiten_qtsf = st.checkbox(
-        r'\- whiten before transforming',
-        value=True
-    )
-    qtsf_grid_enabled = st.checkbox(
-        r'\- enable grid overlay',
-        value=True
-    )
-    qtsf_vline_enabled = st.checkbox(
-        r'\- highlight t0',
-        value=True
-    )
-    qtsf_colormap_choice = st.selectbox(
-        '**Q transform colormap:**',
-        COLORMAP_CHOICES,
-        index=0 # Default is Viridis  (same as Gravity Spy's)
-    )
-    qtsf_colormap = COLORMAPS[qtsf_colormap_choice]
 
     qtsf_submitted = st.form_submit_button(
         'Apply Q transform settings',
@@ -820,17 +609,23 @@ except ValueError as ex:
 t0_iso=gps_to_isot(t0)
 
 t_cache_boundaries = (
-    (512 if sample_rate < HIGH_RATE else 256) \
+    (512 if sample_rate < app_conf.HIGH_RATE else 256) \
     if cache_wide_blocks else 32
 )
 
-t_halfwidth = t_width / 2
 t_start = t_cache_boundaries * \
-    floor((t0 - T_ELBOW_ROOM)/t_cache_boundaries)
+    floor((t0 - app_conf.T_ELBOW_ROOM)/t_cache_boundaries)
 t_end = t_cache_boundaries * \
-    ceil((t0 + T_ELBOW_ROOM)/t_cache_boundaries)
-t_plotstart = t0 - t_halfwidth
-t_plotend = t0 + t_halfwidth
+    ceil((t0 + app_conf.T_ELBOW_ROOM)/t_cache_boundaries)
+t_plotstart = t0 - t_width / 2
+t_plotend = t0 + t_width / 2
+
+data_descriptor = DataDescriptor(
+    interferometer=interferometer,
+    t_start=t_start,
+    t_end=t_end,
+    sample_rate=sample_rate
+)
 
 # GWpy's GPSLocator is quirky...  Major ticks every 3 seconds, and then
 # minor ticks every 0.75 s, are ugly.  The matplotlib alternatives aren't
@@ -853,6 +648,20 @@ if t_width >= 32:
 else:
     t_epoch = floor(t0)
     t_major = min(1, t_width / 8)
+
+# One extra sample will ensure that the rightmost major tick will
+# be drawn when t0 is a sufficiently round number (in binary)...
+t_plotedge = t_plotend + 1./sample_rate
+
+data_settings = AttributeHolder()
+data_settings.t0 = t0
+data_settings.t0_iso = t0_iso
+data_settings.t_width = t_width
+data_settings.t_plotstart = t_plotstart
+data_settings.t_plotend = t_plotend
+data_settings.t_plotedge = t_plotedge
+data_settings.t_epoch = t_epoch
+data_settings.t_major = t_major
 
 # ---------------------------------------------------------------------------
 # -- Data load processing...
@@ -890,7 +699,7 @@ if override_acks != '':
         )
     )
 
-if floor(t_end / CHUNK_SIZE) > floor(t_start / CHUNK_SIZE):
+if floor(t_end / app_conf.CHUNK_SIZE) > floor(t_start / app_conf.CHUNK_SIZE):
     state_adv = \
         '''Brew a pot of :tea: while we're fetching some {0} strain
         data in {1} s chunks from GWOSC...'''
@@ -898,14 +707,11 @@ else:
     state_adv = \
         '''Grab a :coffee: while we're fetching a {1} s chunk of {0}
         strain data from GWOSC...'''
-state_msg = state_adv.format(interferometer, CHUNK_SIZE)
+state_msg = state_adv.format(interferometer, app_conf.CHUNK_SIZE)
 load_strain_state = st.markdown(state_msg)
 
 try:
-    strain, flag_data = load_strain(
-        interferometer,
-        t_start, t_end, sample_rate
-    )
+    strain, flag_data = load_strain(data_descriptor)
 # pylint: disable-next=broad-exception-caught
 except Exception:
     load_strain_state.markdown('')
@@ -923,28 +729,28 @@ loaded_msg = \
 load_strain_state.markdown(loaded_msg)
 st.write('Cache block start:', t_start, ', end:', t_end,
          '; plot start:', t_plotstart, ', end:', t_plotend)
-strain_precropped = strain.crop(
-    t_plotstart - T_PAD,
-    t_plotend + T_PAD
-)
 
-# One extra sample ensures that the rightmost major tick will be drawn when
-# t0 is a sufficiently round number (in binary)...
-t_plotedge = t_plotend + 1./sample_rate
 strain_cropped = strain.crop(
     t_plotstart,
     t_plotedge
 )
 
-# ... *except* when that one sample would fall into the next data gap.
+# When the one extra sample at the edge would fall into the next data gap,
+# we'll need to retreat.  (The subtle tell-tale will be a missing tick.)
 if np.isnan(strain_cropped.value[-1]):
     strain_cropped = strain.crop(
         t_plotstart,
         t_plotend
     )
 
-# Explicit garbage collections may well be overkill, but if we want
-# to do them at all, now is a good time - chances are we have just
+data = AttributeHolder()
+data.strain = strain
+data.strain_cropped = strain_cropped
+data.flag_data = flag_data
+
+# Explicit garbage collections may well be overkill  (and the Streamlit
+# machinery already does them unless explicitly turned off).  If we want
+# to do them ourselves, now is a good time - chances are we have just
 # purged an old strain entry from the cache, and local variables
 # from earlier completed runs have gone out of scope.
 gc.collect()
@@ -955,70 +761,31 @@ if overrides.mem_profiling:
     print(gc.get_stats())
     print_mem_profile(6)
 
-st.subheader('Raw strain data')
+# ---------------------------------------------------------------------------
+# ...available data segments plot...
+# ---------------------------------------------------------------------------
+
+st.markdown('##### Data available for use in the loaded block:')
+
+available_plotter.plot_available_data_segments(
+    data,
+    data_descriptor,
+    data_settings
+)
 
 # ---------------------------------------------------------------------------
 # ...and raw data plot --
 # ---------------------------------------------------------------------------
 
-# This might find no data to plot when the requested interval falls inside
-# a data gap.  The plot() method would fail silently without raising an
-# exception;  only the funny tick labels would leave the viewer scratching
-# their head.  But there's a slightly obscure tell-tale:
+st.subheader('Raw strain data')
 
 try:
-    if np.isnan(strain_cropped.max().to_value()):
-        raise DataGapError()
-
-    with _lock:
-        figure_raw = strain_cropped.plot(color=PRIMARY_COLOR)
-
-        raw_title = f'{interferometer}, around {t0} ({t0_iso} UTC), raw'
-        ax = figure_raw.gca()
-        ax.set_title(
-            raw_title,
-            loc='right', fontsize=RAW_TITLE_FONTSIZE
-        )
-        ax.set_xscale('seconds', epoch=t_epoch)
-        if t_width >= 1.0:
-            ax.xaxis.set_major_locator(MultipleLocator(base=t_major))
-        if t_width <= 4.0:
-            ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
-        ax.set_ylabel('dimensionless')
-        if filtered_vline_enabled:
-            ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
-        st.pyplot(figure_raw, clear_figure=True)
-
+    raw_plotter.plot_raw_data(
+        data,
+        data_descriptor,
+        data_settings
+    )
 except DataGapError:
-    st.error('t0 is too close to or inside a data gap. Please try a shorter'
-             ' time interval, or try changing the requested timestamp.')
-
-    # And provide some information about the available vs. unavailable data
-    # in the vicinity, based on our own inspection of what we got from GWOSC
-    # (rather than expending yet more time to fetch various metadata):
-    with _lock:
-        figure_flag = flag_data.plot(figsize=(12, 1))
-        ax = figure_flag.gca()
-        ax.set_title(
-            'Available / unavailable data vs. requested interval:',
-            fontsize=RAW_TITLE_FONTSIZE
-        )
-        ax.set_xscale('seconds', epoch=floor(t0))
-        if t_end - t_start == 128:
-            # Major ticks appear every 15 seconds, subdivide accordingly:
-            ax.xaxis.set_minor_locator(AutoMinorLocator(n=3))
-        else:
-            # The default subdivisions into 5 or 4 are fine for wide cache
-            # blocks and for 96 s blocks.
-            pass
-        ax.yaxis.set_major_formatter(NullFormatter())
-        ax.yaxis.set_major_locator(NullLocator())
-        # Always highlight t0 in *this* diagram:
-        ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
-        ax.axvline(t_plotstart, color=PRIMARY_COLOR, linestyle='-.')
-        ax.axvline(t_plotend, color=PRIMARY_COLOR, linestyle='-.')
-        st.pyplot(figure_flag, clear_figure=True)
-
     emit_footer()
     st.stop()
 
@@ -1030,74 +797,14 @@ st.divider()
 
 if do_plot:
     st.subheader('Filtered data')
-    try:
-        if f_range[0] >= f_range[1]:
-            # (Constructing the filter would raise a ValueError.)
-            raise ZeroFrequencyRangeError()
 
-        if whiten_plot:
-            filtered = strain_precropped.whiten(
-            ).bandpass(
-                f_range[0],
-                f_range[1]
-            )
-            wh_note = ', whitened'
-        else:
-            filtered = strain_precropped.bandpass(
-                f_range[0],
-                f_range[1]
-            )
-            wh_note = ''
-
-        filtered_cropped = filtered.crop(
-            t_plotstart,
-            t_plotedge
-        )
-
-        # Filtering will have failed when we are too close to a data gap,
-        # and it fails silently - there's no exception we could catch.
-        # But there's a tell-tale in the data:
-        if np.isnan(filtered.max()):
-            raise DataGapError()
-
-        filtered_title = \
-            f'''{interferometer}, around {t0} ({t0_iso} UTC){wh_note},
-            band pass: {f_range[0]} - {f_range[1]} Hz'''
-
-        with _lock:
-            figure_filtered = filtered_cropped.plot(
-                color=PRIMARY_COLOR
-            )
-            ax = figure_filtered.gca()
-            ax.set_title(
-                filtered_title,
-                loc='right', fontsize=FILTERED_TITLE_FONTSIZE
-            )
-            if whiten_plot:
-                ax.set_ylabel('arbitrary units')
-            else:
-                ax.set_ylabel('dimensionless')
-            ax.set_xscale('seconds', epoch=t_epoch)
-            if t_width >= 1.0:
-                ax.xaxis.set_major_locator(MultipleLocator(base=t_major))
-            if t_width <= 4.0:
-                ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
-            if filtered_vline_enabled:
-                ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
-            st.pyplot(figure_filtered, clear_figure=True)
-
-        if f_range[0] < calib_freq_low:
-            st.warning(calib_caveat)
-        else:
-            pass
-    except DataGapError:
-        st.error(
-            '''t0 is too close to (or inside) a data gap, unable to
-            filter the data. Please try a shorter time interval or
-            try changing the requested timestamp.'''
-        )
-    except ZeroFrequencyRangeError:
-        st.warning('Please make the frequency range wider.')
+    # This will bail out with an error message when confronted with a
+    # requested frequency range whose lower and upper bounds coincide.
+    filtered_plotter.plot_filtered_data(
+        data,
+        data_descriptor,
+        data_settings
+    )
 
 else:
     st.write('(Skipping filtered data plotting.)')
@@ -1115,94 +822,11 @@ if do_show_asd:
     # frequency range gracefully by automatically expanding the range
     # (to a whole decade!).  Leaving this in as an Easter egg;  it can
     # be (ab)used to look beyond the upper frequency cutoff.
-
-    asd_bgnd_warning = False
-    try:
-        # Computing the ASD will fail when the cropped interval overlaps a
-        # data gap.  Again the tell-tale symptom is somewhat obscure:
-        strain_asd = strain_cropped.asd()
-        if np.isnan(strain_asd.max().to_value()):
-            raise DataGapError()
-
-        if not asd_offset == 0:
-            strain_bgnd_asd = strain.crop(
-                t_plotstart + asd_offset,
-                t_plotend + asd_offset
-            ).asd()
-            if np.isnan(strain_bgnd_asd.max().to_value()):
-                asd_bgnd_warning = True
-            else:
-                if asd_offset > 0:
-                    asd_bgnd_label = f'{asd_offset} s later'
-                else:
-                    asd_bgnd_label = f'{-asd_offset} s earlier'
-        else:
-            pass
-
-        asd_title = \
-            f'''{interferometer}, during {t_width} s around
-            {t0} GPS ({t0_iso} UTC)'''
-        asd_xlabel = \
-            f'Frequency [Hz], {asd_f_range[0]} - {asd_f_range[1]} Hz'
-        asd_ylabel = r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]'
-
-        with _lock:
-            figure_asd = strain_asd.plot(
-                figsize=ASD_FIGSIZE,
-                color=ASD_LIGHT_COLOR if asd_lighten \
-                else PRIMARY_COLOR
-            )
-            ax = figure_asd.gca()
-            # Now that we have the axes configured, plotting a non-existent
-            # background FrequencySeries would just fail silently - but no
-            # need to even try when we already know it wouldn't work.
-            if not asd_offset == 0 and not asd_bgnd_warning:
-                ax.plot(
-                    strain_bgnd_asd,
-                    label=asd_bgnd_label,
-                    color=PRIMARY_COLOR if asd_lighten \
-                    else ASD_TRANSPARENT_COLOR
-                )
-                # We'll let matplotlib pick the best corner for the legend.
-                # GWpy's custom handler_map creates an example line segment
-                # that's rather thick, but with handler_map=None to reinstate
-                # matplotlib's defaults it would be too thin.
-                ax.legend(fontsize=ASD_TITLE_FONTSIZE)
-            ax.set_title(
-                asd_title,
-                fontsize=ASD_TITLE_FONTSIZE,
-                loc='right', pad=10.
-            )
-            ax.xaxis.set_major_formatter(LogFormatter(base=10))
-            ax.xaxis.set_minor_formatter(MyFormatter(asd_f_range))
-            ax.yaxis.set_minor_formatter(NullFormatter())
-            ax.set_xlim(asd_f_range)
-            ax.set_ylim(asd_y_range)
-            ax.set_ylabel(asd_ylabel, fontsize=ASD_LABEL_FONTSIZE)
-            ax.set_xlabel(asd_xlabel, fontsize=ASD_LABEL_FONTSIZE)
-            ax.xaxis.set_tick_params(which='major',
-                                     labelsize=ASD_LABEL_FONTSIZE)
-            ax.xaxis.set_tick_params(which='minor',
-                                     labelsize=ASD_LABEL_LABELSIZE)
-            ax.yaxis.set_tick_params(which='major',
-                                     labelsize=ASD_LABEL_LABELSIZE)
-            st.pyplot(figure_asd, clear_figure=True)
-
-        if asd_f_range[0] < calib_freq_low:
-            st.warning(calib_caveat)
-
-        if asd_bgnd_warning:
-            st.warning(
-                '''t0 is too close to a data gap, unable to include
-                a background spectrum. Try changing the time offset.'''
-            )
-
-    except DataGapError:
-        st.error(
-            '''t0 is too close to (or inside) a data gap, unable to
-            extract a spectrum. Try a shorter time interval or try
-            varying the requested timestamp.'''
-        )
+    asd_plotter.plot_asd_spectrum(
+        data,
+        data_descriptor,
+        data_settings
+    )
 
 else:
     st.write('(Skipping ASD spectrum plot.)')
@@ -1216,51 +840,20 @@ st.divider()
 if do_spec:
     st.subheader('Spectrogram')
 
-    spec_title = f'{interferometer}, around {t0} GPS ({t0_iso} UTC)'
-    spec_stride = min(t_width / 8, BASIC_SPEC_STRIDE)
-    spec_overlap = spec_stride / 4
-    specgram = make_specgram(
-        strain_cropped,
-        interferometer, t_start, t_end, sample_rate,
-        t_plotstart, t_plotend,
-        stride=spec_stride, overlap=spec_overlap
-    )
     # Unlike other visualizations, spectrograms overlapping a data gap
-    # would fail gracefully, leaving that part blank but keeping the time
-    # axis and all the ticks where we want them to be - and unlike others,
-    # they never depend on data outside the plotted time interval, so there's
-    # no "too close to a data gap" case.
+    # would fail gracefully, leaving that part blank but keeping the
+    # time axis and all the ticks where we want them to be - and unlike
+    # others, they never depend on data outside the plotted time interval,
+    # so there's no "too close to a data gap" case.
     # But we never get here when the plotted interval overlaps a data gap
     # by more than its endpoint, since we have the raw data plot section
     # bail out and stop the script in this case (for consistency).
 
-    with _lock:
-        figure_spec = specgram.plot(figsize=spec_figsize)
-        ax = figure_spec.gca()
-        cax = make_axes_locatable(ax).append_axes(
-            "right",
-            size="5%", pad="3%"
-        )
-        figure_spec.colorbar(
-            label=r'Strain ASD [${\mathrm{Hz}}^{-1/2}$]',
-            cax=cax, cmap=spec_colormap,
-            vmin=spec_v_min, vmax=spec_v_max,
-            norm='log'
-        )
-        ax.set_title(spec_title, fontsize=SPEC_TITLE_FONTSIZE)
-        cax.yaxis.set_minor_formatter(NullFormatter())
-        ax.grid(spec_grid_enabled)
-        cax.grid(spec_grid_enabled)
-        ax.set_xscale('seconds', epoch=t_epoch)
-        if t_width >= 1.0:
-            ax.xaxis.set_major_locator(MultipleLocator(base=t_major))
-        if t_width <= 4.0:
-            ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
-        ax.set_yscale('log', base=2)
-        ax.set_ylim(spec_f_range)
-        if spec_vline_enabled:
-            ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
-        st.pyplot(figure_spec, clear_figure=True)
+    spec_plotter.plot_spectrogram(
+        data,
+        data_descriptor,
+        data_settings
+    )
 else:
     st.write('(Skipping spectrogram.)')
 
@@ -1273,71 +866,11 @@ st.divider()
 if do_qtsf:
     st.subheader('Constant-Q transform')
 
-    try:
-        q_gram, q_warning = transform_strain(
-            strain, interferometer,
-            t_start, t_end,
-            sample_rate,
-            t_plotstart, t_plotend, T_PAD,
-            q_val=q0,
-            whiten=whiten_qtsf
-        )
-        q_error = False
-    except ValueError:
-        q_warning = 0
-        q_error = True
-
-    if q_error:
-        st.error(
-            '''t0 is too close to (or inside) a data gap, unable to
-            compute the Q-transform. Try a shorter time interval or
-            try varying the requested timestamp.'''
-        )
-    else:
-        q_wh_note = ', whitened' if whiten_qtsf else ''
-        qtsf_title = \
-            f'''{interferometer}, around {t0} ({t0_iso} UTC),
-            Q={q0}{q_wh_note}'''
-
-        with _lock:
-            figure_qgram = q_gram.plot(figsize=qtsf_figsize)
-            ax = figure_qgram.gca()
-            cax = make_axes_locatable(ax).append_axes(
-                "right",
-                size="5%", pad="3%"
-            )
-            figure_qgram.colorbar(
-                label="Normalized energy",
-                cax=cax, cmap=qtsf_colormap,
-                clim=(0, ne_cutoff)
-            )
-            ax.set_title(qtsf_title, fontsize=QTSF_TITLE_FONTSIZE)
-            ax.title.set_position([.5, 1.05])
-            ax.grid(qtsf_grid_enabled)
-            cax.grid(qtsf_grid_enabled)
-            ax.set_xscale('seconds', epoch=t_epoch)
-            if t_width >= 1.0:
-                ax.xaxis.set_major_locator(MultipleLocator(base=t_major))
-            if t_width <= 4.0:
-                ax.xaxis.set_minor_locator(AutoMinorLocator(n=5))
-            ax.set_yscale('log', base=2)
-            ax.set_ylim(bottom=10)
-            if qtsf_vline_enabled:
-                ax.axvline(t0, color=VLINE_COLOR, linestyle='--')
-            st.pyplot(figure_qgram, clear_figure=True)
-
-        if q_warning > 0:
-            q_caveat = \
-                '''t0 is close to a data gap, thus the Q-transform could
-                not look{0} beyond the edges of what has been plotted and
-                areas near these edges may contain artefacts.
-                Also, information about low frequencies may be insufficient
-                to paint that region.
-                '''.format(' far' if q_warning == 1 else '')
-            st.warning(q_caveat)
-        else:
-            pass
-
+    qtsf_plotter.plot_q_transform(
+        data,
+        data_descriptor,
+        data_settings
+    )
 else:
     st.write('(Skipping Q-transform rendering.)')
 
