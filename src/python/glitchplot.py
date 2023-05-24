@@ -383,6 +383,31 @@ st.sidebar.write(
     then click the button underneath to apply them.'''
 )
 
+# ... cookie warning up front:
+
+if not overrides.silence_notices:
+    if 'silenced' not in st.session_state:
+        st.session_state['silenced'] = False
+
+    def silence_me():
+        st.session_state['silenced'] = True
+
+    if not st.session_state['silenced']:
+        with st.sidebar.form('cookie_warning'):
+            st.caption(
+                '''This appplication uses essential cookies to ensure
+                consistent behavior from one button click to the next.
+                It won't remember you from one visit to the next, so this
+                notice will keep reappearing.
+                The cloud hosting platform also uses cookies to collect
+                anonymized usage statistics.'''
+            )
+            silenced = st.form_submit_button(
+                'Got it!',
+                type='primary',
+                on_click=silence_me
+            )
+
 # ... data-loading form:
 
 loader.configure(app_conf, appearance, overrides)
@@ -392,21 +417,6 @@ raw_gram.configure(app_conf, appearance, overrides)
 raw_plotter = raw_gram.RawData()
 
 with st.sidebar.form('load_what'):
-
-    if not overrides.silence_notices and \
-       'silenced' not in st.session_state:
-        st.caption(
-            '''This appplication uses essential cookies to ensure
-            consistent behavior from one button click to the next.
-            It won't remember you from one visit to the next, so this
-            notice will keep reappearing.
-            The cloud hosting platform also uses cookies to collect
-            anonymized usage statistics.'''
-        )
-        st.session_state['silenced'] = st.checkbox(
-            r'\- Got it!',
-            value=False
-        )
 
     st.markdown('### Load what from where:')
 
