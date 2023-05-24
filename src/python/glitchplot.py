@@ -390,6 +390,7 @@ if not overrides.silence_notices:
         st.session_state['silenced'] = False
 
     def silence_me():
+        """Remember that the user has acknowledged the message."""
         st.session_state['silenced'] = True
 
     if not st.session_state['silenced']:
