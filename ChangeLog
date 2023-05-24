@@ -1,9 +1,16 @@
-v0.9.0.1	(2023-tbd)
---------------------------
+Change Log
+
+v0.9.0.1	(2023-05-24)
+----------------------------
+Public beta pre-release
+
+Bug fixes:
+#22	Don't dismiss the cookie explanation prematurely.
 
 Enhancements:
-#21	Tweak colormap choices to really match GWitchHunters, and fix the spelling of that Zooniverse project, too.
+#21	Tweak colormap choices to really match GWitchHunters,
+	and fix the spelling of that Zooniverse project, too.
 
 v0.9.0.0	(2023-05-22)
 ----------------------------
-Public beta pre-release
+Initial public beta pre-release
