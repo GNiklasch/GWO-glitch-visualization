@@ -1,8 +1,17 @@
 Change Log
 
-v0.9.0.1	(2023-05-24)
+v0.9.0.2	(2023-06-02)
 ----------------------------
 Public beta pre-release
+
+Enhancements:
+#-	Update to streamlit 1.23.1, gwpy 3.0.5, astropy 5.3 and
+	other dependencies to latest available versions
+	(except pinning urllib3 at 1.26.16, pending a 2.0.x fix).
+
+v0.9.0.1	(2023-05-24)
+----------------------------
+(Integration testing only.)
 
 Bug fixes:
 #22	Don't dismiss the cookie explanation prematurely.
